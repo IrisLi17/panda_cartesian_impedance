@@ -1,0 +1,2 @@
+geometry_msgs/PoseStamped left_pose
+geometry_msgs/PoseStamped right_pose

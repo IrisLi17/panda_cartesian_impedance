@@ -1,0 +1,8 @@
+<library path="lib/libpanda_cartesian_impedance">
+    <class name="panda_cartesian_impedance/DualArmCartesianImpedanceExampleController" type="panda_cartesian_impedance::DualArmCartesianImpedanceExampleController" base_class_type="controller_interface::ControllerBase">
+      <description>
+        A controller that renders Cartesian impedance based tracking of separate target poses for 2 panda arms.
+      </description>
+    </class>
+  </library>
+  
