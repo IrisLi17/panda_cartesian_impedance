@@ -1,0 +1,58 @@
+<?xml version="1.0" ?>
+<launch>
+    <arg name="robot_ip" />
+    <arg name="load_gripper" default="true" />
+
+    <include file="$(find easy_handeye)/launch/publish.launch">
+        <arg name="eye_on_hand" value="false" />
+        <arg name="namespace_prefix" value="panda_eob_calib" />
+    </include>
+
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
+    
+    <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
+    <include file="$(find franka_control)/launch/franka_control.launch" >
+        <arg name="robot_ip" value="$(arg robot_ip)" />
+        <arg name="load_gripper" value="$(arg load_gripper)" />
+    </include>
+    
+    <rosparam command="load" file="$(find franka_example_controllers)/config/franka_example_controllers.yaml" />
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="cartesian_impedance_example_controller"/>
+    <node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find franka_example_controllers)/launch/rviz/franka_description_with_marker.rviz"/>      
+    
+    <!-- (start your tracking system's ROS driver) -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch"> </include>     
+
+    <!-- fill in the following parameters according to your tracking system -->
+    <arg name="markerId"        default="7"/>      <!-- set your marker id -->
+    <arg name="markerSize"      default="0.037"/>    <!-- in m -->
+    <!--arg name="markerSize"      default="0.0735"/!-->
+    <arg name="eye"             default="left"/>
+    <arg name="marker_frame"    default="aruco_marker_frame"/> 
+    <arg name="ref_frame"       default=""/>  <!-- leave empty and the pose will be published wrt param parent_name -->
+    <arg name="corner_refinement" default="LINES" /> <!-- NONE, HARRIS, LINES, SUBPIX -->    
+    <arg name="camera_frame" default="camera_color_frame" />
+    <arg name="camera_image_topic" default="/camera/color/image_raw" />
+    <arg name="camera_info_topic" default="/camera/color/camera_info" /> 
+
+    <node pkg="aruco_ros" type="single" name="aruco_single">
+        <remap to="$(arg camera_info_topic)" from="/camera_info" />
+        <remap to="$(arg camera_image_topic)" from="/image" />
+        <param name="image_is_rectified" value="True"/>
+        <param name="marker_size"        value="$(arg markerSize)"/>
+        <param name="marker_id"          value="$(arg markerId)"/>
+        <param name="reference_frame"    value="$(arg ref_frame)"/>   <!-- frame in which the marker pose will be refered -->
+        <param name="camera_frame"       value="$(arg camera_frame)"/>
+        <param name="marker_frame"       value="$(arg marker_frame)" />
+        <param name="corner_refinement"  value="$(arg corner_refinement)" />
+    </node>
+
+    <!-- read object pose from marker, and command the arm !-->
+    <node name="pose_commander" pkg="panda_cartesian_impedance" type="aruco_track.py" required="true" output="screen">
+        <param name="link_name" value="panda_link0" />  
+        <param name="marker_link" value="aruco_marker_frame" />
+        <remap from="equilibrium_pose" to="/cartesian_impedance_example_controller/equilibrium_pose" />
+    </node>
+    <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" required="false" />
+
+</launch>
