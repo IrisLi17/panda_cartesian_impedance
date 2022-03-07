@@ -4,6 +4,8 @@ project(panda_cartesian_impedance)
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_PREFIX_PATH $ENV{HOME}/libtorch)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 find_package(catkin REQUIRED COMPONENTS
   controller_interface
@@ -24,6 +26,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Eigen3 REQUIRED)
 find_package(Franka 0.7.0 REQUIRED)
+find_package(Torch REQUIRED)
+
 
 add_message_files(FILES
   DualPoseStamped.msg
@@ -56,11 +60,13 @@ catkin_package(
 
 add_library(panda_cartesian_impedance
   src/dual_arm_cartesian_impedance_controller.cpp
+  src/neural_commander.cpp
 )
 
 target_link_libraries(panda_cartesian_impedance PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
+  ${TORCH_LIBRARIES}
 )
 
 target_include_directories(panda_cartesian_impedance SYSTEM PUBLIC
@@ -89,7 +95,7 @@ install(FILES panda_cartesian_impedance_plugin.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 catkin_install_python(
-  PROGRAMS scripts/pose_commander.py
+  PROGRAMS scripts/pose_commander.py scripts/obs_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
