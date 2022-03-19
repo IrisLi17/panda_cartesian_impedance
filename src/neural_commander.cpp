@@ -54,7 +54,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     if (!obs_received) return;
     std::vector<torch::jit::IValue> inputs;
     inputs.push_back(observation);
-    at::Tensor output = policy.get_method("take_action"](inputs).toTensor();
+    at::Tensor output = policy.get_method("take_action")(inputs).toTensor();
     auto output_a = output.accessor<float, 2>();
     cartesian_target_pose.header.frame_id = ref_link_name;
     cartesian_target_pose.pose.position.x = eef_pose.getOrigin().getX() + output_a[0][0] * 0.05;
