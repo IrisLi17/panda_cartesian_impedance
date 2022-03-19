@@ -21,6 +21,7 @@ bool NeuralCommander::start() {
     cartesian_target_pub = node_handle.advertise<geometry_msgs::PoseStamped>("equilibrium_pose", 10);
     grasp_client.waitForServer();
     move_client.waitForServer();
+    step_counter = 0;
     timer = node_handle.createTimer(ros::Duration(0.1), &NeuralCommander::timer_callback, this);
     return true;
 }
@@ -53,16 +54,16 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     if (!obs_received) return;
     std::vector<torch::jit::IValue> inputs;
     inputs.push_back(observation);
-    at::Tensor output = policy.forward(inputs).toTensor();
+    at::Tensor output = policy.get_method("take_action"](inputs).toTensor();
     auto output_a = output.accessor<float, 2>();
     cartesian_target_pose.header.frame_id = ref_link_name;
     cartesian_target_pose.pose.position.x = eef_pose.getOrigin().getX() + output_a[0][0] * 0.05;
     cartesian_target_pose.pose.position.y = eef_pose.getOrigin().getY() + output_a[0][1] * 0.05;
     cartesian_target_pose.pose.position.z = eef_pose.getOrigin().getZ() + output_a[0][2] * 0.05;
-    cartesian_target_pose.pose.orientation.x = eef_pose.getRotation().getX();
-    cartesian_target_pose.pose.orientation.y = eef_pose.getRotation().getY();
-    cartesian_target_pose.pose.orientation.z = eef_pose.getRotation().getZ();
-    cartesian_target_pose.pose.orientation.w = eef_pose.getRotation().getW();
+    cartesian_target_pose.pose.orientation.x = 1.0;
+    cartesian_target_pose.pose.orientation.y = 0.0;
+    cartesian_target_pose.pose.orientation.z = 0.0;
+    cartesian_target_pose.pose.orientation.w = 0.0;
     cartesian_target_pub.publish(cartesian_target_pose);
     // TODO: finger control
     float width = (output_a[0][3] + 1) * 0.04;
@@ -79,6 +80,10 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         goal.speed = 0.1;
         goal.width = width;
         move_client.sendGoal(goal);
+    }
+    step_counter += 1;
+    if (step_counter >= 50) {
+        timer.stop();
     }
 }
 

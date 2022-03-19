@@ -7,10 +7,13 @@ import math
 
 from std_msgs.msg import Float32MultiArray
 from franka_msgs.msg import FrankaState
+from sensor_msgs.msg import JointState
 
 listener = None
 obs_obj_pose = None
 obs_eef_pose = None
+obs_finger_width = None
+obs_goal = np.array([0.3, 0.0, 0.025])
 initial_pose_found = False
 pose_pub = None
 step_count = 0
@@ -30,6 +33,11 @@ def franka_state_callback(msg):
         initial_pose_found = True
 
 
+def franka_gripper_state_callback(msg):
+    global obs_finger_width
+    obs_finger_width = msg.data.position[0] + msg.data.position[1]
+
+
 def marker_tf_callback(msg, ref_link_name, marker_link_name):
     try:
         tvec, rvec = listener.lookupTransform(ref_link_name, marker_link_name, rospy.Time())
@@ -41,8 +49,9 @@ def marker_tf_callback(msg, ref_link_name, marker_link_name):
 
 def publisherCallback(msg):
     observation = np.concatenate(
-        [obs_eef_pose[0], tf.transformations.euler_from_quaternion(obs_eef_pose[1]),
-         obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1])])
+        [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
+         obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
+         obs_obj_pose[0], obs_goal])
     obs_pub.publish(observation)
 
 

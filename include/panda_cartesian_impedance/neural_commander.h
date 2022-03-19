@@ -39,6 +39,7 @@ private:
 public:
     NeuralCommander(ros::NodeHandle* nodehandle);
     ~NeuralCommander();
+    int step_counter;
     bool load_model(const char*);
     bool start();
 };
