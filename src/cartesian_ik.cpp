@@ -9,7 +9,7 @@
 #include <ros/ros.h>
 
 
-namespace franka_cartesian_impedance {
+namespace panda_cartesian_impedance {
 
 bool CartesianIKController::init(hardware_interface::RobotHW* robot_hw,
                                  ros::NodeHandle& node_handle) {
@@ -200,6 +200,6 @@ void CartesianIKController::equilibriumPoseCallback(
 
 }  // namespace franka_example_controllers
 
-PLUGINLIB_EXPORT_CLASS(franka_cartesian_impedance::CartesianIKController,
+PLUGINLIB_EXPORT_CLASS(panda_cartesian_impedance::CartesianIKController,
                        controller_interface::ControllerBase)
 

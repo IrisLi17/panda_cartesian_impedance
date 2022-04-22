@@ -19,7 +19,7 @@
 #include <franka_hw/franka_model_interface.h>
 #include <franka_hw/franka_state_interface.h>
 
-namespace franka_cartesian_impedance {
+namespace panda_cartesian_impedance {
 
 class CartesianIKController : public controller_interface::MultiInterfaceController<
                                         franka_hw::FrankaModelInterface,
@@ -55,4 +55,4 @@ class CartesianIKController : public controller_interface::MultiInterfaceControl
   void equilibriumPoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
 };
 
-}  // namespace franka_cartesian_impedance
+}  // namespace panda_cartesian_impedance
