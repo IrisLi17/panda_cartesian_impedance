@@ -151,7 +151,9 @@ void CartesianIKController::update(const ros::Time& /*time*/,
   // tau_task << jacobian.transpose() *
   //                 (-cartesian_stiffness_ * error - cartesian_damping_ * (jacobian * dq));
   // solve damped least squares
-  tau_task << jacobian.transpose() * (jacobian * jacobian.transpose() + lmbda_).inverse() * error;
+  Eigen::VectorXd q_error(7);  // q_desired - q
+  q_error << jacobian.transpose() * (jacobian * jacobian.transpose() + lmbda_).inverse() * error;
+  tau_task << q_stiffness_ * q_error - q_damping_ * dq;
   // nullspace PD control with damping ratio = 1
   //   tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
   //                     jacobian.transpose() * jacobian_transpose_pinv) *
