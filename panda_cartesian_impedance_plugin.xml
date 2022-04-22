@@ -4,5 +4,10 @@
         A controller that renders Cartesian impedance based tracking of separate target poses for 2 panda arms.
       </description>
     </class>
+    <class name="panda_cartesian_impedance/CartesianIKController" type="panda_cartesian_impedance::CartesianIKController" base_class_type="controller_interface::ControllerBase">
+      <description>
+        A simple damped least square IK cartesian controller.
+      </description>
+    </class>
   </library>
   
