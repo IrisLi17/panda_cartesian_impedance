@@ -107,7 +107,7 @@ void CartesianIKController::starting(const ros::Time& /*time*/) {
   orientation_d_target_ = Eigen::Quaterniond(initial_transform.linear());
 
   // set nullspace equilibrium configuration to initial q
-  q_d_nullspace_ = q_initial;
+  // q_d_nullspace_ = q_initial;
 }
 
 void CartesianIKController::update(const ros::Time& /*time*/,
@@ -200,6 +200,6 @@ void CartesianIKController::equilibriumPoseCallback(
 
 }  // namespace franka_example_controllers
 
-PLUGINLIB_EXPORT_CLASS(franka_example_controllers::CartesianIKController,
+PLUGINLIB_EXPORT_CLASS(franka_cartesian_impedance::CartesianIKController,
                        controller_interface::ControllerBase)
 
