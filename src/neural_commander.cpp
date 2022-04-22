@@ -35,6 +35,7 @@ void NeuralCommander::obs_callback(const std_msgs::Float32MultiArray::ConstPtr& 
     observation = torch::unsqueeze(observation, 0);
     if (!obs_received){
         obs_received = true;
+        std::cout << "observation received" << std::endl;
     } 
 }
 
@@ -60,10 +61,27 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     cartesian_target_pose.pose.position.x = eef_pose.getOrigin().getX() + output_a[0][0] * 0.05;
     cartesian_target_pose.pose.position.y = eef_pose.getOrigin().getY() + output_a[0][1] * 0.05;
     cartesian_target_pose.pose.position.z = eef_pose.getOrigin().getZ() + output_a[0][2] * 0.05;
+    // Add safety clip
+    if (cartesian_target_pose.pose.position.x <= 0.1) {
+        cartesian_target_pose.pose.position.x = 0.1;
+    } else if (cartesian_target_pose.pose.position.x >= 0.5) {
+        cartesian_target_pose.pose.position.x = 0.5;
+    }
+    if (cartesian_target_pose.pose.position.y <= -0.4) {
+        cartesian_target_pose.pose.position.y = -0.4;
+    } else if (cartesian_target_pose.pose.position.y >= 0.4) {
+        cartesian_target_pose.pose.position.y = 0.4;
+    }
+    if (cartesian_target_pose.pose.position.z <= 0.025) {
+        cartesian_target_pose.pose.position.z = 0.025;
+    } else if (cartesian_target_pose.pose.position.z >= 0.4) {
+        cartesian_target_pose.pose.position.z = 0.4;
+    }
     cartesian_target_pose.pose.orientation.x = 1.0;
     cartesian_target_pose.pose.orientation.y = 0.0;
     cartesian_target_pose.pose.orientation.z = 0.0;
     cartesian_target_pose.pose.orientation.w = 0.0;
+    std::cout << cartesian_target_pose.pose.position << std::endl;
     cartesian_target_pub.publish(cartesian_target_pose);
     // TODO: finger control
     float width = (output_a[0][3] + 1) * 0.04;
@@ -74,7 +92,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         goal.epsilon.outer = 0.01;
         goal.force = 5;
         goal.speed = 0.1;
-        grasp_client.sendGoal(goal);
+        // grasp_client.sendGoal(goal);
     } else {
         franka_gripper::MoveGoal goal;
         goal.speed = 0.1;
@@ -82,8 +100,9 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         move_client.sendGoal(goal);
     }
     step_counter += 1;
-    if (step_counter >= 50) {
+    if (step_counter >= 200) {
         timer.stop();
+        std::cout << "timer stopped" << std::endl;
     }
 }
 

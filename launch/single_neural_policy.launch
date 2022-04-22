@@ -24,8 +24,8 @@
     <include file="$(find realsense2_camera)/launch/rs_camera.launch"> </include>     
 
     <!-- fill in the following parameters according to your tracking system -->
-    <arg name="markerId"        default="7"/>      <!-- set your marker id -->
-    <arg name="markerSize"      default="0.037"/>    <!-- in m -->
+    <arg name="markerId"        default="6"/>      <!-- set your marker id -->
+    <arg name="markerSize"      default="0.04"/>    <!-- in m -->
     <!--arg name="markerSize"      default="0.0735"/!-->
     <arg name="eye"             default="left"/>
     <arg name="marker_frame"    default="aruco_marker_frame"/> 

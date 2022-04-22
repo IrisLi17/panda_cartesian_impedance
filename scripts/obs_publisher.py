@@ -13,7 +13,7 @@ listener = None
 obs_obj_pose = None
 obs_eef_pose = None
 obs_finger_width = None
-obs_goal = np.array([0.3, 0.0, 0.025])
+obs_goal = np.array([0.3, 0.1, 0.025])
 initial_pose_found = False
 pose_pub = None
 step_count = 0
@@ -35,7 +35,7 @@ def franka_state_callback(msg):
 
 def franka_gripper_state_callback(msg):
     global obs_finger_width
-    obs_finger_width = msg.data.position[0] + msg.data.position[1]
+    obs_finger_width = msg.position[0] + msg.position[1]
 
 
 def marker_tf_callback(msg, ref_link_name, marker_link_name):
@@ -44,21 +44,30 @@ def marker_tf_callback(msg, ref_link_name, marker_link_name):
     except:
         return
     global obs_obj_pose
+    # todo: timestamp, avoid out of date data
+    tvec[2] = 0.025
+    rvec = np.array([0, 0, 0, 1])
     obs_obj_pose = (tvec, rvec)
 
 
 def publisherCallback(msg):
-    observation = np.concatenate(
-        [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
-         obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
-         obs_obj_pose[0], obs_goal])
-    obs_pub.publish(observation)
+    if obs_eef_pose is not None and obs_finger_width is not None and obs_obj_pose is not None:
+        observation = np.concatenate(
+            [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
+            obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
+            obs_obj_pose[0], obs_goal])
+        observation = Float32MultiArray(data=observation)
+        obs_pub.publish(observation)
+    else:
+        print("observation not ready")
 
 
 if __name__ == "__main__":
     rospy.init_node("obs_publisher_node")
     state_sub = rospy.Subscriber("franka_state_controller/franka_states",
                                  FrankaState, franka_state_callback)
+    rospy.Subscriber("franka_gripper/joint_states", 
+                     JointState, franka_gripper_state_callback)
     listener = tf.TransformListener()
     link_name = rospy.get_param("~link_name")
     marker_link_name = rospy.get_param("~marker_link_name")

@@ -60,7 +60,7 @@ catkin_package(
 
 add_library(panda_cartesian_impedance
   src/dual_arm_cartesian_impedance_controller.cpp
-  src/neural_commander.cpp
+  # src/neural_commander.cpp
 )
 
 target_link_libraries(panda_cartesian_impedance PUBLIC
@@ -75,6 +75,23 @@ target_include_directories(panda_cartesian_impedance SYSTEM PUBLIC
   ${catkin_INCLUDE_DIRS}
 )
 target_include_directories(panda_cartesian_impedance PUBLIC
+  include
+)
+
+add_executable(neural_commander src/neural_commander.cpp)
+target_link_libraries(neural_commander PUBLIC
+  ${Franka_LIBRARIES}
+  ${catkin_LIBRARIES}
+  ${TORCH_LIBRARIES}
+)
+
+target_include_directories(neural_commander SYSTEM PUBLIC
+  ${Franka_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+
+target_include_directories(neural_commander PUBLIC
   include
 )
 

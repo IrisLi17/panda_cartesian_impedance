@@ -12,7 +12,7 @@
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch">
         <arg name="robot_ip" value="$(arg robot_ip)"/> <!-- set your robot ip -->
         <arg name="load_gripper" value="true"/>
-        <arg name="launch_rviz" value="false"/>
+        <arg name="launch_rviz" value="true"/>
     </include>        
     
     <!-- (start your tracking system's ROS driver) -->
@@ -21,7 +21,7 @@
     <!-- fill in the following parameters according to your tracking system -->
     <arg name="markerId"        default="7"/>      <!-- set your marker id -->
     <!--arg name="markerSize"      default="0.037"/!-->    <!-- in m -->
-    <arg name="markerSize"      default="0.0735"/>
+    <arg name="markerSize"      default="0.04"/>
     <arg name="eye"             default="left"/>
     <arg name="marker_frame"    default="aruco_marker_frame"/> 
     <arg name="ref_frame"       default=""/>  <!-- leave empty and the pose will be published wrt param parent_name -->

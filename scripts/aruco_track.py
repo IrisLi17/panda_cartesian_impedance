@@ -19,9 +19,9 @@ position_limits = [[-0.6, 0.6], [-0.6, 0.6], [0.05, 0.9]]
 transformer = None
 
 EE_T_obj = np.array([
-    [-1, 0, 0, -0.07],
+    [-1, 0, 0, -0.0],
     [0, 0, -1, -0.02],
-    [0, -1, 0, 0.05],
+    [0, -1, 0, 0.08],
     [0, 0, 0, 1]
 ])
 
@@ -45,10 +45,10 @@ def publisherCallback(msg, link_name, marker_link):
             marker_pose.pose.position.x = O_t_EE[0]
             marker_pose.pose.position.y = O_t_EE[1]
             marker_pose.pose.position.z = O_t_EE[2]
-            marker_pose.pose.orientation.x = O_q_EE[0]
-            marker_pose.pose.orientation.y = O_q_EE[1]
-            marker_pose.pose.orientation.z = O_q_EE[2]
-            marker_pose.pose.orientation.w = O_q_EE[3]
+            # marker_pose.pose.orientation.x = O_q_EE[0]
+            # marker_pose.pose.orientation.y = O_q_EE[1]
+            # marker_pose.pose.orientation.z = O_q_EE[2]
+            # marker_pose.pose.orientation.w = O_q_EE[3]
             pose_pub.publish(marker_pose)
         except:
             print transformer.getFrameStrings()
