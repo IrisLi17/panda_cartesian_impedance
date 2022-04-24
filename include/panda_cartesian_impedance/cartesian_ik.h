@@ -43,8 +43,10 @@ class CartesianIKController : public controller_interface::MultiInterfaceControl
   double filter_params_{0.005};
   const double delta_tau_max_{1.0};
   double damping_{0.05};
-  double q_stiffness_{400.0};
-  double q_damping_{40.0};
+  // double q_stiffness_{400.0};
+  // double q_damping_{40.0};
+  Eigen::Matrix<double, 7, 1> q_stiffness_;
+  Eigen::Matrix<double, 7, 1> q_damping_;
   Eigen::Matrix<double, 6, 6> lmbda_;
   Eigen::Vector3d position_d_;
   Eigen::Quaterniond orientation_d_;

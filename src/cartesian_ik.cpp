@@ -78,6 +78,9 @@ bool CartesianIKController::init(hardware_interface::RobotHW* robot_hw,
     }
   }
 
+  q_stiffness_ << 80, 120, 100, 100, 70, 50, 20;
+  q_damping_ << 10, 10, 10, 10, 5, 5, 5;
+
   position_d_.setZero();
   orientation_d_.coeffs() << 0.0, 0.0, 0.0, 1.0;
   position_d_target_.setZero();
@@ -153,7 +156,7 @@ void CartesianIKController::update(const ros::Time& /*time*/,
   // solve damped least squares
   Eigen::VectorXd q_error(7);  // q_desired - q
   q_error << jacobian.transpose() * (jacobian * jacobian.transpose() + lmbda_).inverse() * error;
-  tau_task << q_stiffness_ * q_error - q_damping_ * dq;
+  tau_task << q_stiffness_.cwiseProduct(q_error) - q_damping_.cwiseProduct(dq);
   // nullspace PD control with damping ratio = 1
   //   tau_nullspace << (Eigen::MatrixXd::Identity(7, 7) -
   //                     jacobian.transpose() * jacobian_transpose_pinv) *
