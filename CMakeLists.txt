@@ -62,6 +62,7 @@ add_library(panda_cartesian_impedance
   src/dual_arm_cartesian_impedance_controller.cpp
   # src/neural_commander.cpp
   src/cartesian_ik.cpp
+  src/cartesian_pd.cpp
 )
 
 target_link_libraries(panda_cartesian_impedance PUBLIC

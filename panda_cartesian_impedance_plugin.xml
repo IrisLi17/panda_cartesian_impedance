@@ -9,5 +9,10 @@
         A simple damped least square IK cartesian controller.
       </description>
     </class>
+    <class name="panda_cartesian_impedance/CartesianPDController" type="panda_cartesian_impedance::CartesianPDController" base_class_type="controller_interface::ControllerBase">
+      <description>
+        A cartesian PD impedance controller copied from Polymetis.
+      </description>
+    </class>
   </library>
   
