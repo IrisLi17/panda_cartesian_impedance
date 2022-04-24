@@ -14,5 +14,10 @@
         A cartesian PD impedance controller copied from Polymetis.
       </description>
     </class>
+    <class name="panda_cartesian_impedance/CartesianOSC" type="panda_cartesian_impedance::CartesianOSC" base_class_type="controller_interface::ControllerBase">
+      <description>
+       An operational space controller with null space damping copied from IsaacGym examples.
+      </description>
+    </class>
   </library>
   
