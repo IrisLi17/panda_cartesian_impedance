@@ -55,6 +55,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     if (!obs_received) return;
     std::vector<torch::jit::IValue> inputs;
     inputs.push_back(observation);
+    // TODO: method name, control logic (flange) changed in isaac
     at::Tensor output = policy.get_method("take_action")(inputs).toTensor();
     auto output_a = output.accessor<float, 2>();
     cartesian_target_pose.header.frame_id = ref_link_name;
@@ -83,9 +84,10 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     cartesian_target_pose.pose.orientation.w = 0.0;
     std::cout << cartesian_target_pose.pose.position << std::endl;
     cartesian_target_pub.publish(cartesian_target_pose);
-    // TODO: finger control
+    // TODO: tweak finger control, may need to wait or cancel
     float width = (output_a[0][3] + 1) * 0.04;
-    if (output_a[0][3] < 0) {
+    // if (output_a[0][3] < 0) {
+    if (false) {
         franka_gripper::GraspGoal goal;
         goal.width = width;
         goal.epsilon.inner = width;
@@ -98,6 +100,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         goal.speed = 0.1;
         goal.width = width;
         move_client.sendGoal(goal);
+        move_client.waitForResult(ros::Duration(0.1));
     }
     step_counter += 1;
     if (step_counter >= 200) {

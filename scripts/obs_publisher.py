@@ -13,7 +13,7 @@ listener = None
 obs_obj_pose = None
 obs_eef_pose = None
 obs_finger_width = None
-obs_goal = np.array([0.3, 0.1, 0.025])
+obs_goal = np.array([0.3, 0.0, 0.025])
 initial_pose_found = False
 pose_pub = None
 step_count = 0
@@ -46,16 +46,31 @@ def marker_tf_callback(msg, ref_link_name, marker_link_name):
     global obs_obj_pose
     # todo: timestamp, avoid out of date data
     tvec[2] = 0.025
-    rvec = np.array([0, 0, 0, 1])
-    obs_obj_pose = (tvec, rvec)
+    # rvec = np.array([0, 0, 0, 1])
+    m_T_center = np.array([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, -0.025],
+            [0, 0, 0, 1]
+        ])
+    O_T_marker = tf.transformations.quaternion_matrix(rvec)
+    O_T_marker[:3, 3] = np.array(tvec)
+    O_T_marker[1, 3] -= 0.00
+    O_T_marker[0, 3] -= 0.01
+    O_T_center = np.matmul(O_T_marker, m_T_center)
+    obs_obj_pose = (O_T_center[:3, 3], rvec)
 
 
 def publisherCallback(msg):
     if obs_eef_pose is not None and obs_finger_width is not None and obs_obj_pose is not None:
+        # observation = np.concatenate(
+        #     [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
+        #     obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
+        #     obs_obj_pose[0], obs_goal])
         observation = np.concatenate(
-            [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
-            obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
-            obs_obj_pose[0], obs_goal])
+            [obs_obj_pose[0], obs_goal, obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width],
+            obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1])]
+        )
         observation = Float32MultiArray(data=observation)
         obs_pub.publish(observation)
     else:
