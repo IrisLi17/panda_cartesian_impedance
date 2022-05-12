@@ -22,6 +22,10 @@ bool NeuralCommander::start() {
     grasp_client.waitForServer();
     move_client.waitForServer();
     step_counter = 0;
+    if (is_recurrent) {
+        recurrent_hidden_state = torch::zeros({1, hidden_state_size}, torch::kFloat32);
+    }
+    recurrent_mask = torch::ones({1, 1}, torch::kFloat32);
     timer = node_handle.createTimer(ros::Duration(0.1), &NeuralCommander::timer_callback, this);
     return true;
 }
@@ -55,23 +59,46 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     if (!obs_received) return;
     std::vector<torch::jit::IValue> inputs;
     inputs.push_back(observation);
+    if (is_recurrent) {
+        inputs.push_back(recurrent_hidden_state);
+        inputs.push_back(recurrent_mask);
+    }
     // TODO: method name, control logic (flange) changed in isaac
-    at::Tensor output = policy.get_method("take_action")(inputs).toTensor();
-    auto output_a = output.accessor<float, 2>();
+    if (!is_recurrent) {
+        at::Tensor output = policy.get_method("take_action")(inputs).toTensor();
+        auto output_a = output.accessor<float, 2>();
+        for (int i=0; i<4; i++) {
+            action[i] = output_a[0][i];
+        }
+    } else {
+        auto outputs = policy.get_method("take_action")(inputs).toTuple();
+        at::Tensor out1 = outputs->elements()[0].toTensor();
+        auto out1_a = out1.accessor<float, 2>();
+        at::Tensor out2 = outputs->elements()[1].toTensor();
+        for (int i=0; i<4; i++) {
+            action[i] = out1_a[0][i];
+        }
+        recurrent_hidden_state = out2;
+    }
+    for (int i=0; i<4; i++) {
+        if (action[i] > 1) action[i] = 1;
+        else if (action[i] < -1) action[i] = -1;
+    }
+    
     cartesian_target_pose.header.frame_id = ref_link_name;
-    cartesian_target_pose.pose.position.x = eef_pose.getOrigin().getX() + output_a[0][0] * 0.05;
-    cartesian_target_pose.pose.position.y = eef_pose.getOrigin().getY() + output_a[0][1] * 0.05;
-    cartesian_target_pose.pose.position.z = eef_pose.getOrigin().getZ() + output_a[0][2] * 0.05;
+    cartesian_target_pose.pose.position.x = eef_pose.getOrigin().getX() + action[0] * 0.05;
+    cartesian_target_pose.pose.position.y = eef_pose.getOrigin().getY() + action[1] * 0.05;
+    cartesian_target_pose.pose.position.z = eef_pose.getOrigin().getZ() + action[2] * 0.05;
     // Add safety clip
     if (cartesian_target_pose.pose.position.x <= 0.1) {
         cartesian_target_pose.pose.position.x = 0.1;
     } else if (cartesian_target_pose.pose.position.x >= 0.5) {
         cartesian_target_pose.pose.position.x = 0.5;
     }
-    if (cartesian_target_pose.pose.position.y <= -0.4) {
-        cartesian_target_pose.pose.position.y = -0.4;
-    } else if (cartesian_target_pose.pose.position.y >= 0.4) {
-        cartesian_target_pose.pose.position.y = 0.4;
+    if (cartesian_target_pose.pose.position.y <= -0.35) {
+        cartesian_target_pose.pose.position.y = -0.35;
+    } else if (cartesian_target_pose.pose.position.y >= 0.35) {
+        cartesian_target_pose.pose.position.y = 0.35;
     }
     if (cartesian_target_pose.pose.position.z <= 0.025) {
         cartesian_target_pose.pose.position.z = 0.025;
@@ -85,7 +112,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     std::cout << cartesian_target_pose.pose.position << std::endl;
     cartesian_target_pub.publish(cartesian_target_pose);
     // TODO: tweak finger control, may need to wait or cancel
-    float width = (output_a[0][3] + 1) * 0.04;
+    float width = (action[3] + 1) * 0.04;
     // if (output_a[0][3] < 0) {
     if (false) {
         franka_gripper::GraspGoal goal;
@@ -127,6 +154,10 @@ int main(int argc, char** argv) {
     NeuralCommander neural_commander(&node_handle);
     if (!neural_commander.load_model(argv[1])) {
         return 1;
+    }
+    neural_commander.is_recurrent = (atoi(argv[2]) == 1);
+    if (neural_commander.is_recurrent) {
+        neural_commander.hidden_state_size = atoi(argv[3]);
     }
     bool result = neural_commander.start();
     if (!result) {

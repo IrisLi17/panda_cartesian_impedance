@@ -35,11 +35,16 @@ private:
     tf::Pose marker_pose;
     torch::jit::Module policy;
     torch::Tensor observation;
+    torch::Tensor recurrent_hidden_state;
+    torch::Tensor recurrent_mask;
+    std::array<float, 4> action;
     geometry_msgs::PoseStamped cartesian_target_pose;
 public:
     NeuralCommander(ros::NodeHandle* nodehandle);
     ~NeuralCommander();
     int step_counter;
+    bool is_recurrent;
+    int hidden_state_size;
     bool load_model(const char*);
     bool start();
 };
