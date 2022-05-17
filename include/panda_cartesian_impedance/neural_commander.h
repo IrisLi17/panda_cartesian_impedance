@@ -5,6 +5,7 @@
 #include <franka_msgs/FrankaState.h>
 #include <geometry_msgs/Pose.h>
 #include <std_msgs/Float32MultiArray.h>
+#include <sensor_msgs/JointState.h>
 #include <actionlib/client/simple_action_client.h>
 #include <franka_gripper/GraspAction.h>
 #include <franka_gripper/MoveAction.h>
@@ -14,10 +15,11 @@
 class NeuralCommander
 {
 private:
-    void franka_state_callback(const franka_msgs::FrankaState::ConstPtr&);
+    // void franka_state_callback(const franka_msgs::FrankaState::ConstPtr&);
     void marker_tf_callback();
     void timer_callback(const ros::TimerEvent&);
     void obs_callback(const std_msgs::Float32MultiArray::ConstPtr&);
+    // void gripper_joint_callback(const sensor_msgs::JointState::ConstPtr&);
     ros::Subscriber obs_sub;
     bool obs_received;
     std::vector<float> _obs;
@@ -25,13 +27,14 @@ private:
     actionlib::SimpleActionClient<franka_gripper::MoveAction> move_client;
     /* data */
     ros::NodeHandle node_handle;
-    ros::Subscriber franka_state_sub;
+    // ros::Subscriber franka_state_sub;
+    // ros::Subscriber gripper_joint_sub;
     ros::Publisher cartesian_target_pub;
     tf::TransformListener tf_listener;
     ros::Timer timer;
     std::string marker_link_name;
     std::string ref_link_name;
-    tf::Pose eef_pose;
+    // tf::Pose eef_pose;
     tf::Pose marker_pose;
     torch::jit::Module policy;
     torch::Tensor observation;
@@ -39,6 +42,7 @@ private:
     torch::Tensor recurrent_mask;
     std::array<float, 4> action;
     geometry_msgs::PoseStamped cartesian_target_pose;
+    // const double *gripper_joint;
 public:
     NeuralCommander(ros::NodeHandle* nodehandle);
     ~NeuralCommander();

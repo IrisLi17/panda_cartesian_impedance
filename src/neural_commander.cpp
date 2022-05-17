@@ -15,9 +15,12 @@ bool NeuralCommander::start() {
     obs_sub = node_handle.subscribe(
         "rl_observation", 10, &NeuralCommander::obs_callback, this
     );
-    franka_state_sub = node_handle.subscribe(
-        "franka_state_controller/franka_states", 10, &NeuralCommander::franka_state_callback, this
-    );
+    // franka_state_sub = node_handle.subscribe(
+    //     "franka_state_controller/franka_states", 10, &NeuralCommander::franka_state_callback, this
+    // );
+    // gripper_joint_sub = node_handle.subscribe(
+    //     "franka_gripper/joint_states", 10, &NeuralCommander::gripper_joint_callback, this
+    // );
     cartesian_target_pub = node_handle.advertise<geometry_msgs::PoseStamped>("equilibrium_pose", 10);
     grasp_client.waitForServer();
     move_client.waitForServer();
@@ -43,16 +46,20 @@ void NeuralCommander::obs_callback(const std_msgs::Float32MultiArray::ConstPtr& 
     } 
 }
 
-void NeuralCommander::franka_state_callback(const franka_msgs::FrankaState::ConstPtr& msg) {
-    Eigen::Affine3d transform(Eigen::Matrix4d::Map(msg->O_T_EE.data()));
-    tf::poseEigenToTF(transform, eef_pose);
-}
+// void NeuralCommander::franka_state_callback(const franka_msgs::FrankaState::ConstPtr& msg) {
+//     Eigen::Affine3d transform(Eigen::Matrix4d::Map(msg->O_T_EE.data()));
+//     tf::poseEigenToTF(transform, eef_pose);
+// }
 
 // void NeuralCommander::marker_tf_callback() {
 //     tf::StampedTransform transform;
 //     tf_listener.waitForTransform(marker_link_name, ref_link_name, ros::Time(0), ros::Duration(10.0));
 //     tf_listener.lookupTransform(marker_link_name, ref_link_name, ros::Time(0), transform);
 //     marker_pose = tf::Pose(transform);
+// }
+
+// void NeuralCommander::gripper_joint_callback(const sensor_msgs::JointState::ConstPtr &msg) {
+//     gripper_joint = msg->position.data();
 // }
 
 void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
@@ -85,10 +92,14 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         else if (action[i] < -1) action[i] = -1;
     }
     
+    int state_start = 3 * 84 * 84;
+    auto obs_acc = observation.accessor<float, 2>();
+    float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2]};
+    float cur_width = obs_acc[0][state_start + 7] + obs_acc[0][state_start + 8];
     cartesian_target_pose.header.frame_id = ref_link_name;
-    cartesian_target_pose.pose.position.x = eef_pose.getOrigin().getX() + action[0] * 0.05;
-    cartesian_target_pose.pose.position.y = eef_pose.getOrigin().getY() + action[1] * 0.05;
-    cartesian_target_pose.pose.position.z = eef_pose.getOrigin().getZ() + action[2] * 0.05;
+    cartesian_target_pose.pose.position.x = cur_eef_position[0] + action[0] * 0.05;
+    cartesian_target_pose.pose.position.y = cur_eef_position[1] + action[1] * 0.05;
+    cartesian_target_pose.pose.position.z = cur_eef_position[2] + action[2] * 0.05;
     // Add safety clip
     if (cartesian_target_pose.pose.position.x <= 0.1) {
         cartesian_target_pose.pose.position.x = 0.1;
@@ -113,6 +124,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     cartesian_target_pub.publish(cartesian_target_pose);
     // TODO: tweak finger control, may need to wait or cancel
     float width = (action[3] + 1) * 0.04;
+    width = std::min(std::max(cur_width - float(0.01), width), cur_width + float(0.01));
     // if (output_a[0][3] < 0) {
     if (false) {
         franka_gripper::GraspGoal goal;
