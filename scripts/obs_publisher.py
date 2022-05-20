@@ -55,22 +55,23 @@ def marker_tf_callback(msg, ref_link_name, marker_link_name):
         ])
     O_T_marker = tf.transformations.quaternion_matrix(rvec)
     O_T_marker[:3, 3] = np.array(tvec)
-    O_T_marker[1, 3] -= 0.00
-    O_T_marker[0, 3] -= 0.01
+    # O_T_marker[1, 3] -= 0.00
+    # O_T_marker[0, 3] -= 0.00
     O_T_center = np.matmul(O_T_marker, m_T_center)
     obs_obj_pose = (O_T_center[:3, 3], rvec)
 
 
 def publisherCallback(msg):
     if obs_eef_pose is not None and obs_finger_width is not None and obs_obj_pose is not None:
-        # observation = np.concatenate(
-        #     [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
-        #     obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
-        #     obs_obj_pose[0], obs_goal])
         observation = np.concatenate(
-            [obs_obj_pose[0], obs_goal, obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width],
-            obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1])]
-        )
+            [obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width], 
+            obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1]),
+            obs_obj_pose[0], obs_goal])
+        # Huang Tao's input config
+        # observation = np.concatenate(
+        #     [obs_obj_pose[0], obs_goal, obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width],
+        #     obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1])]
+        # )
         observation = Float32MultiArray(data=observation)
         obs_pub.publish(observation)
     else:

@@ -93,7 +93,8 @@ class ExpertController(object):
             tvec, rvec = self.tf_listener.lookupTransform(self.link_name, self.marker_link, rospy.Time())
             O_T_marker = tf.transformations.quaternion_matrix(rvec)
             O_T_marker[:3, 3] = np.array(tvec)
-            O_T_marker[1, 3] -= 0.02
+            # O_T_marker[1, 3] -= 0.00
+            # O_T_marker[0, 3] -= 0.00
             O_T_center = np.matmul(O_T_marker, self.m_T_center)
             self.box_pos_obs.append(O_T_center[:3, 3])
             self.box_pos = np.mean(np.stack(self.box_pos_obs, axis=0), axis=0)
@@ -112,7 +113,7 @@ class ExpertController(object):
             self.desired_pose.pose.orientation.z = 0.0
             self.desired_pose.pose.orientation.w = 0.0
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 1.5e-2:
+            if np.linalg.norm(dpos) < 1e-2:
                 self.phase = 1
         elif self.phase == 1:
             dpos = np.clip(self.box_pos - self.eef_pos, -0.05, 0.05)
@@ -120,7 +121,7 @@ class ExpertController(object):
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 1.5e-2:
+            if np.linalg.norm(dpos) < 1e-2:
                 self.phase = 2
         elif self.phase == 2:
             if not self.gripper_grasp_lock:
@@ -135,16 +136,17 @@ class ExpertController(object):
             if self.gripper_grasp_lock and self.finger_width < 0.055:
                 self.phase = 3
                 self.gripper_grasp_lock = 0
+                self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + 0.1]
         elif self.phase == 3:
             # epsilon = franka_gripper.msg.GraspEpsilon(inner=0.01, outer=0.01)
             # goal = franka_gripper.msg.GraspGoal(
             #     width=0.05, speed=0.1, epsilon=epsilon, force=1)
             # self.gripper_grasp_client.send_goal(goal)
-            self.desired_pose.pose.position.x = self.eef_pos[0]
-            self.desired_pose.pose.position.y = self.eef_pos[1]
-            self.desired_pose.pose.position.z = self.eef_pos[2] + 0.05
+            self.desired_pose.pose.position.x = self.up_pos[0]
+            self.desired_pose.pose.position.y = self.up_pos[1]
+            self.desired_pose.pose.position.z = self.up_pos[2]
             print("In phase", self.phase, "hand pos", self.eef_pos)
-            if self.eef_pos[2] > 0.12:
+            if abs(self.eef_pos[2] - self.up_pos[2]) < 3e-2:
                 self.gripper_grasp_client.cancel_all_goals()
                 self.phase = 4
         elif self.phase == 4:

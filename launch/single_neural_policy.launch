@@ -65,7 +65,7 @@
     </group>
     <arg name="load_path" />
     <arg name="is_recurrent" default="0" />
-    <arg name="hidden_size" default="64" />
+    <arg name="hidden_size" default="128" />
     <node name="neural_commander" pkg="panda_cartesian_impedance" type="neural_commander" required="true" output="screen"
      args="$(arg load_path) $(arg is_recurrent) $(arg hidden_size)">
         <remap from="equilibrium_pose" to="cartesian_ik_controller/equilibrium_pose" />
