@@ -28,7 +28,7 @@
 
     <group if="$(arg use_marker)" >
         <!-- fill in the following parameters according to your tracking system -->
-        <arg name="markerId"        default="6"/>      <!-- set your marker id -->
+        <arg name="markerId"        default="7"/>      <!-- set your marker id -->
         <arg name="markerSize"      default="0.04"/>    <!-- in m -->
         <!--arg name="markerSize"      default="0.0735"/!-->
         <arg name="eye"             default="left"/>
@@ -50,9 +50,6 @@
             <param name="marker_frame"       value="$(arg marker_frame)" />
             <param name="corner_refinement"  value="$(arg corner_refinement)" />
         </node>
-    </group>
-
-    <group if="$(arg use_marker)" >
         <!-- read object pose from marker, and command the arm !-->
         <node name="obs_publisher" pkg="panda_cartesian_impedance" type="obs_publisher.py" required="true" output="screen">
             <param name="link_name" value="panda_link0" />
