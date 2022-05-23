@@ -91,11 +91,14 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         if (action[i] > 1) action[i] = 1;
         else if (action[i] < -1) action[i] = -1;
     }
+    std::cout << "action: " << action[0] << ", " << action[1] << "," << action[2] << "," << action[3] << std::endl;
     
-    int state_start = 3 * 84 * 84;
+    // int state_start = 3 * 84 * 84;
+    int state_start = 3;
     auto obs_acc = observation.accessor<float, 2>();
-    float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2]};
+    float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2] - float(0.4)};
     float cur_width = obs_acc[0][state_start + 7] + obs_acc[0][state_start + 8];
+    std::cout << "current eef position: " << cur_eef_position[0] << ", " << cur_eef_position[1] << ", " << cur_eef_position[2] << std::endl;
     cartesian_target_pose.header.frame_id = ref_link_name;
     cartesian_target_pose.pose.position.x = cur_eef_position[0] + action[0] * 0.05;
     cartesian_target_pose.pose.position.y = cur_eef_position[1] + action[1] * 0.05;
@@ -103,8 +106,8 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     // Add safety clip
     if (cartesian_target_pose.pose.position.x <= 0.1) {
         cartesian_target_pose.pose.position.x = 0.1;
-    } else if (cartesian_target_pose.pose.position.x >= 0.5) {
-        cartesian_target_pose.pose.position.x = 0.5;
+    } else if (cartesian_target_pose.pose.position.x >= 0.6) {
+        cartesian_target_pose.pose.position.x = 0.6;
     }
     if (cartesian_target_pose.pose.position.y <= -0.35) {
         cartesian_target_pose.pose.position.y = -0.35;
@@ -113,8 +116,8 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     }
     if (cartesian_target_pose.pose.position.z <= 0.025) {
         cartesian_target_pose.pose.position.z = 0.025;
-    } else if (cartesian_target_pose.pose.position.z >= 0.4) {
-        cartesian_target_pose.pose.position.z = 0.4;
+    } else if (cartesian_target_pose.pose.position.z >= 0.7) {
+        cartesian_target_pose.pose.position.z = 0.7;
     }
     cartesian_target_pose.pose.orientation.x = 1.0;
     cartesian_target_pose.pose.orientation.y = 0.0;

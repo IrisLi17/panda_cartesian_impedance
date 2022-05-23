@@ -12,6 +12,9 @@ from franka_msgs.msg import FrankaState
 import franka_gripper
 import franka_gripper.msg
 from sensor_msgs.msg import JointState
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+import pickle
 
 
 class ExpertController(object):
@@ -19,6 +22,7 @@ class ExpertController(object):
         self.desired_pose = PoseStamped()
         self._initial_pose_found = False
         self.eef_pos = np.zeros(3)
+        self.robot_q = None
         self.box_pos_obs = deque(maxlen=5)
         self.box_pos = np.array([0.4, 0.0, 0.025])
         self.m_T_center = np.array([
@@ -28,6 +32,7 @@ class ExpertController(object):
             [0, 0, 0, 1]
         ])
         self.finger_width = 0.08
+        self.step_count = 0
         state_sub = rospy.Subscriber(
             "franka_state_controller/franka_states",
             FrankaState, self.franka_state_callback)
@@ -36,6 +41,9 @@ class ExpertController(object):
         self.tf_listener = tf.TransformListener()
         self.link_name = rospy.get_param("~link_name")
         self.marker_link = rospy.get_param("~marker_link")
+        self.rgb_image = None
+        self.bridge = CvBridge()
+        rospy.Subscriber("camera/color/image_raw", Image, self.rgb_callback)
         # Get initial pose for the interactive marker
         while not self._initial_pose_found:
             rospy.sleep(1)
@@ -84,21 +92,31 @@ class ExpertController(object):
             self.eef_pos[0] = msg.O_T_EE[12]
             self.eef_pos[1] = msg.O_T_EE[13]
             self.eef_pos[2] = msg.O_T_EE[14]
+            self.robot_q = np.array(msg.q)
     
     def franka_gripper_state_callback(self, msg):
         self.finger_width = msg.position[0] + msg.position[1]
     
+    def rgb_callback(self, msg):
+        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
+        self.rgb_image = np.asarray(cv_image)
+
     def control_callback(self, msg):
         try:
             tvec, rvec = self.tf_listener.lookupTransform(self.link_name, self.marker_link, rospy.Time())
             O_T_marker = tf.transformations.quaternion_matrix(rvec)
             O_T_marker[:3, 3] = np.array(tvec)
-            # O_T_marker[1, 3] -= 0.00
-            # O_T_marker[0, 3] -= 0.00
+            # O_T_marker[1, 3] -= 0.05
+            # O_T_marker[0, 3] += 0.01
             O_T_center = np.matmul(O_T_marker, self.m_T_center)
             self.box_pos_obs.append(O_T_center[:3, 3])
             self.box_pos = np.mean(np.stack(self.box_pos_obs, axis=0), axis=0)
             print(O_T_marker[:3, 3], self.box_pos)
+            saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
+                      "finger_width": self.finger_width, "box": O_T_center[:3, 3]}
+            with open("/home/yunfei/Documents/expert_data/%d.pkl" % self.step_count, "wb") as f:
+                pickle.dump(saved_data, f)
+            self.step_count += 1
             if self.phase == -1:
                 self.phase = 0
         except:
