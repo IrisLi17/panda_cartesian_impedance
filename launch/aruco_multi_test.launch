@@ -21,4 +21,9 @@
         <!--param name="marker_frame"       value="$(arg marker_frame)" />
         <param name="corner_refinement"  value="$(arg corner_refinement)" /!-->
     </node>
+    <!-- read object pose from marker, and command the arm !-->
+    <node name="debug" pkg="panda_cartesian_impedance" type="debug_multi_marker_obs.py" required="true" output="screen">
+        <!--remap from="equilibrium_pose" to="/cartesian_impedance_example_controller/equilibrium_pose" /!-->
+        <param name="markers_topic" value="marker_publisher/markers" />
+    </node>
 </launch>

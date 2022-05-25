@@ -13,6 +13,7 @@ import franka_gripper
 import franka_gripper.msg
 from sensor_msgs.msg import JointState
 from sensor_msgs.msg import Image
+from aruco_msgs.msg import MarkerArray
 from cv_bridge import CvBridge
 import pickle
 
@@ -24,7 +25,7 @@ class ExpertController(object):
         self.eef_pos = np.zeros(3)
         self.robot_q = None
         self.box_pos_obs = deque(maxlen=5)
-        self.box_pos = np.array([0.4, 0.0, 0.025])
+        self.box_pos = None
         self.m_T_center = np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0],
@@ -39,11 +40,13 @@ class ExpertController(object):
         rospy.Subscriber("franka_gripper/joint_states", 
                     JointState, self.franka_gripper_state_callback)
         self.tf_listener = tf.TransformListener()
+        # robot base frame
         self.link_name = rospy.get_param("~link_name")
-        self.marker_link = rospy.get_param("~marker_link")
-        self.rgb_image = None
-        self.bridge = CvBridge()
-        rospy.Subscriber("camera/color/image_raw", Image, self.rgb_callback)
+        self.markers_topic = rospy.get_param("~markers_topic") # /marker_publisher/markers
+        rospy.Subscriber(self.markers_topic, MarkerArray, self.estimate_com_callback)
+        # self.rgb_image = None
+        # self.bridge = CvBridge()
+        # rospy.Subscriber("camera/color/image_raw", Image, self.rgb_callback)
         # Get initial pose for the interactive marker
         while not self._initial_pose_found:
             rospy.sleep(1)
@@ -101,26 +104,54 @@ class ExpertController(object):
         cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         self.rgb_image = np.asarray(cv_image)
 
+    def estimate_com_callback(self, msg):
+        # print("in estimate_com_callback")
+        markers = msg.markers
+        ref_frame = msg.header.frame_id
+        ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, ref_frame, rospy.Time())
+        O_T_ref = tf.transformations.quaternion_matrix(ref_rvec)
+        O_T_ref[:3, 3] = ref_tvec
+        # assume single object
+        com_obs = []
+        for i in range(len(markers)):
+            marker_id = markers[i].id  # useful to filter when tracking multiple objects
+            pose = markers[i].pose.pose
+            tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
+            rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+            ref_T_marker = tf.transformations.quaternion_matrix(rvec)
+            ref_T_marker[:3, 3] = tvec
+            O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
+            com_obs.append(O_T_center[:3, 3])
+        self.box_pos = np.mean(np.array(com_obs), axis=0) + np.array([-0.03, 0., 0.04])
+        print(self.box_pos)
+
     def control_callback(self, msg):
-        try:
-            tvec, rvec = self.tf_listener.lookupTransform(self.link_name, self.marker_link, rospy.Time())
-            O_T_marker = tf.transformations.quaternion_matrix(rvec)
-            O_T_marker[:3, 3] = np.array(tvec)
-            # O_T_marker[1, 3] -= 0.05
-            # O_T_marker[0, 3] += 0.01
-            O_T_center = np.matmul(O_T_marker, self.m_T_center)
-            self.box_pos_obs.append(O_T_center[:3, 3])
-            self.box_pos = np.mean(np.stack(self.box_pos_obs, axis=0), axis=0)
-            print(O_T_marker[:3, 3], self.box_pos)
-            saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
-                      "finger_width": self.finger_width, "box": O_T_center[:3, 3]}
-            with open("/home/yunfei/Documents/expert_data/%d.pkl" % self.step_count, "wb") as f:
-                pickle.dump(saved_data, f)
-            self.step_count += 1
-            if self.phase == -1:
-                self.phase = 0
-        except:
+        # try:
+        #     tvec, rvec = self.tf_listener.lookupTransform(self.link_name, self.marker_link, rospy.Time())
+        #     O_T_marker = tf.transformations.quaternion_matrix(rvec)
+        #     O_T_marker[:3, 3] = np.array(tvec)
+        #     # O_T_marker[1, 3] -= 0.05
+        #     # O_T_marker[0, 3] += 0.01
+        #     O_T_center = np.matmul(O_T_marker, self.m_T_center)
+        #     self.box_pos_obs.append(O_T_center[:3, 3])
+        #     self.box_pos = np.mean(np.stack(self.box_pos_obs, axis=0), axis=0)
+        #     print(O_T_marker[:3, 3], self.box_pos)
+        #     saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
+        #               "finger_width": self.finger_width, "box": O_T_center[:3, 3]}
+        #     with open("/home/yunfei/Documents/expert_data/%d.pkl" % self.step_count, "wb") as f:
+        #         pickle.dump(saved_data, f)
+        #     self.step_count += 1
+        #     if self.phase == -1:
+        #         self.phase = 0
+        # except:
+        #     print("Box pos not received")
+        if self.box_pos is None:
             print("Box pos not received")
+            return
+        
+        elif self.phase == -1:
+            self.phase = 0
+        
         if self.phase == 0:
             dpos = np.clip(self.box_pos + np.array([0, 0, 0.1]) - self.eef_pos, -0.05 ,0.05)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
