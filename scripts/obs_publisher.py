@@ -26,9 +26,9 @@ class StateObsPublisher():
         self.finger_joints = np.zeros(2)
         self.target_pos = None
         self.obj_pos = None
-        self.goal = np.array([0.4, -0.2, 0.425])
+        self.goal = np.array([0.6, -0.1, 0.425])
         
-        self.listener = tf.TransformListener()
+        self.tf_listener = tf.TransformListener()
         rospy.Subscriber("franka_state_controller/franka_states",
                          FrankaState, self.franka_state_callback)
         rospy.Subscriber("franka_gripper/joint_states", 
@@ -65,9 +65,11 @@ class StateObsPublisher():
         if self.eef_pos is not None and self.obj_pos is not None:
             if self.target_pos is None:
                 self.target_pos = self.eef_pos.copy()
+                self.goal[2] = self.obj_pos[2]
             observation = np.concatenate(
                 [self.obj_pos, self.eef_pos, self.eef_quaternion, self.finger_joints, 
                  self.target_pos, self.goal])
+            print(observation)
             # Huang Tao's input config
             # observation = np.concatenate(
             #     [obs_obj_pose[0], obs_goal, obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width],
@@ -121,15 +123,14 @@ class StateObsPublisher():
             ref_T_marker[:3, 3] = tvec
             O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
             com_obs.append(O_T_center[:3, 3])
-        self.obj_pos = np.mean(np.array(com_obs), axis=0) + np.array([0., 0., 0.4])
-        print(self.box_pos)
+        self.obj_pos = np.mean(np.array(com_obs), axis=0) + np.array([-0.02, 0.02, 0.035]) + np.array([0., 0., 0.4])
 
 
 if __name__ == "__main__":
     rospy.init_node("obs_publisher_node")
     link_name = rospy.get_param("~link_name")
-    marker_link_name = rospy.get_param("~marker_link_name")
-    obs_publisher = StateObsPublisher(link_name, marker_link_name)
+    markers_topic = rospy.get_param("~markers_topic")
+    obs_publisher = StateObsPublisher(link_name, markers_topic)
     obs_publisher.run()
     try:
         rospy.spin()

@@ -127,7 +127,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     cartesian_target_pub.publish(cartesian_target_pose);
     // TODO: tweak finger control, may need to wait or cancel
     float width = (action[3] + 1) * 0.04;
-    width = std::min(std::max(cur_width - float(0.01), width), cur_width + float(0.01));
+    width = std::min(std::max(cur_width - float(0.06), width), cur_width + float(0.06));
     // if (output_a[0][3] < 0) {
     if (false) {
         franka_gripper::GraspGoal goal;
@@ -139,7 +139,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         // grasp_client.sendGoal(goal);
     } else {
         franka_gripper::MoveGoal goal;
-        goal.speed = 0.1;
+        goal.speed = 0.5;
         goal.width = width;
         move_client.sendGoal(goal);
         move_client.waitForResult(ros::Duration(0.1));
