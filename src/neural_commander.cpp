@@ -98,7 +98,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     auto obs_acc = observation.accessor<float, 2>();
     float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2] - float(0.4)};
     float cur_width = obs_acc[0][state_start + 7] + obs_acc[0][state_start + 8];
-    std::cout << "current eef position: " << cur_eef_position[0] << ", " << cur_eef_position[1] << ", " << cur_eef_position[2] << std::endl;
+    std::cout << step_counter << " current eef position: " << cur_eef_position[0] << ", " << cur_eef_position[1] << ", " << cur_eef_position[2] << std::endl;
     cartesian_target_pose.header.frame_id = ref_link_name;
     cartesian_target_pose.pose.position.x = cur_eef_position[0] + action[0] * 0.05;
     cartesian_target_pose.pose.position.y = cur_eef_position[1] + action[1] * 0.05;
@@ -123,11 +123,13 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     cartesian_target_pose.pose.orientation.y = 0.0;
     cartesian_target_pose.pose.orientation.z = 0.0;
     cartesian_target_pose.pose.orientation.w = 0.0;
-    std::cout << cartesian_target_pose.pose.position << std::endl;
+    std::cout << step_counter <<  " cartesian_target: " << cartesian_target_pose.pose.position << std::endl;
     cartesian_target_pub.publish(cartesian_target_pose);
     // TODO: tweak finger control, may need to wait or cancel
     float width = (action[3] + 1) * 0.04;
     width = std::min(std::max(cur_width - float(0.06), width), cur_width + float(0.06));
+    std::cout << step_counter << " current width: " << cur_width << std::endl;
+    std::cout << step_count << " target width: " << width << std::endl;
     // if (output_a[0][3] < 0) {
     if (false) {
         franka_gripper::GraspGoal goal;
