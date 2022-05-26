@@ -8,14 +8,14 @@ from std_msgs.msg import Float32MultiArray
 from franka_msgs.msg import FrankaState
 from sensor_msgs.msg import JointState, Image
 from geometry_msgs.msg import PoseStamped
+from aruco_msgs.msg import MarkerArray
 from cv_bridge import CvBridge
-import pickle
 
 
 class StateObsPublisher():
-    def __init__(self, link_name, marker_link_name):
+    def __init__(self, link_name, markers_topic):
         self.link_name = link_name
-        self.marker_link_name = marker_link_name
+        self.markers_topic = markers_topic
 
         self._initial_state_found = False
         self._initial_finger_found = False
@@ -50,8 +50,7 @@ class StateObsPublisher():
                 [0, 0, 0, 1]
             ])
         self.obs_pub = rospy.Publisher("rl_observation", Float32MultiArray, queue_size=10)
-        rospy.Timer(rospy.Duration(0.05), 
-                    lambda msg: self.marker_tf_callback(msg))
+        rospy.Subscriber(self.markers_topic, MarkerArray, self.estimate_com_callback)
 
     def run(self):
         # run pose publisher
@@ -76,10 +75,10 @@ class StateObsPublisher():
             # )
             observation = Float32MultiArray(data=observation)
             print("publish", observation)
-            saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
-                      "finger_width": self.finger_joints, "box": self.obj_pos, "observation": observation}
-            with open("/home/yunfei/Documents/real_data/%d.pkl" % self.step_count, "wb") as f:
-                pickle.dump(saved_data, f)
+            # saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
+            #           "finger_width": self.finger_joints, "box": self.obj_pos, "observation": observation}
+            # with open("/home/yunfei/Documents/real_data/%d.pkl" % self.step_count, "wb") as f:
+            #     pickle.dump(saved_data, f)
             self.step_count += 1
             self.obs_pub.publish(observation)
         else:
@@ -104,24 +103,26 @@ class StateObsPublisher():
     def target_pose_callback(self, msg):
         self.target_pos = np.array([msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]) + np.array([0, 0, 0.4])
 
-    def marker_tf_callback(self, msg):
-        try:
-            tvec, rvec = self.listener.lookupTransform(self.link_name, self.marker_link_name, rospy.Time())
-        except:
-            print(self.listener.getFrameStrings())
-            print("try to look up", self.link_name, self.marker_link_name)
-            return
-        # todo: timestamp, avoid out of date data
-        # rvec = np.array([0, 0, 0, 1])
-        
-        O_T_marker = tf.transformations.quaternion_matrix(rvec)
-        O_T_marker[:3, 3] = np.array(tvec)
-        # O_T_marker[1, 3] -= 0.05
-        # O_T_marker[0, 3] += 0.01
-        O_T_center = np.matmul(O_T_marker, self.m_T_center)
-        self.obj_pos = O_T_center[:3, 3] + np.array([0., 0., 0.4])
-        # print("obj pos", self.obj_pos)
-        # obs_obj_pose = (O_T_center[:3, 3], rvec)
+    def estimate_com_callback(self, msg):
+        # print("in estimate_com_callback")
+        markers = msg.markers
+        ref_frame = msg.header.frame_id
+        ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, ref_frame, rospy.Time())
+        O_T_ref = tf.transformations.quaternion_matrix(ref_rvec)
+        O_T_ref[:3, 3] = ref_tvec
+        # assume single object
+        com_obs = []
+        for i in range(len(markers)):
+            marker_id = markers[i].id  # useful to filter when tracking multiple objects
+            pose = markers[i].pose.pose
+            tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
+            rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+            ref_T_marker = tf.transformations.quaternion_matrix(rvec)
+            ref_T_marker[:3, 3] = tvec
+            O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
+            com_obs.append(O_T_center[:3, 3])
+        self.obj_pos = np.mean(np.array(com_obs), axis=0) + np.array([0., 0., 0.4])
+        print(self.box_pos)
 
 
 if __name__ == "__main__":

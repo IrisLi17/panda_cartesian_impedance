@@ -30,34 +30,15 @@
     <include file="$(find realsense2_camera)/launch/rs_camera.launch"> </include>     
 
     <!-- fill in the following parameters according to your tracking system -->
-    <arg name="markerId"        default="7"/>      <!-- set your marker id -->
-    <arg name="markerSize"      default="0.04"/>    <!-- in m -->
-    <!--arg name="markerSize"      default="0.0735"/!-->
-    <arg name="eye"             default="left"/>
-    <arg name="marker_frame"    default="aruco_marker_frame"/> 
-    <arg name="ref_frame"       default=""/>  <!-- leave empty and the pose will be published wrt param parent_name -->
-    <arg name="corner_refinement" default="LINES" /> <!-- NONE, HARRIS, LINES, SUBPIX -->    
-    <arg name="camera_frame" default="camera_color_frame" />
-    <arg name="camera_image_topic" default="/camera/color/image_raw" />
-    <arg name="camera_info_topic" default="/camera/color/camera_info" /> 
-
-    <node pkg="aruco_ros" type="single" name="aruco_single">
-        <remap to="$(arg camera_info_topic)" from="/camera_info" />
-        <remap to="$(arg camera_image_topic)" from="/image" />
-        <param name="image_is_rectified" value="True"/>
-        <param name="marker_size"        value="$(arg markerSize)"/>
-        <param name="marker_id"          value="$(arg markerId)"/>
-        <param name="reference_frame"    value="$(arg ref_frame)"/>   <!-- frame in which the marker pose will be refered -->
-        <param name="camera_frame"       value="$(arg camera_frame)"/>
-        <param name="marker_frame"       value="$(arg marker_frame)" />
-        <param name="corner_refinement"  value="$(arg corner_refinement)" />
-    </node>
-
     <group if="$(arg use_marker)" >
+        <arg name="markerSize" default="0.04" />
+        <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch">
+            <arg name="markerSize" value="$(arg markerSize)" />
+        </include>
         <!-- read object pose from marker, and command the arm !-->
         <node name="obs_publisher" pkg="panda_cartesian_impedance" type="obs_publisher.py" required="true" output="screen">
             <param name="link_name" value="panda_link0" />
-            <param name="marker_link_name" value="$(arg marker_frame)" />
+            <param name="markers_topic" value="marker_publisher/markers" />
         </node>
     </group>
     <group unless="$(arg use_marker)" >
