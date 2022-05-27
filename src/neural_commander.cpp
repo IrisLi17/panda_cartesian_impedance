@@ -131,8 +131,8 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
             // Add safety clip
             if (cartesian_target_pose.pose.position.x <= 0.1) {
                 cartesian_target_pose.pose.position.x = 0.1;
-            } else if (cartesian_target_pose.pose.position.x >= 0.6) {
-                cartesian_target_pose.pose.position.x = 0.6;
+            } else if (cartesian_target_pose.pose.position.x >= 0.7) {
+                cartesian_target_pose.pose.position.x = 0.7;
             }
             if (cartesian_target_pose.pose.position.y <= -0.35) {
                 cartesian_target_pose.pose.position.y = -0.35;
@@ -154,8 +154,9 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
     } else {
         // wait for gripper to finish
         timer.stop();
-        move_client.waitForResult();
-        std::cout << "gripper result" << move_client.getResult() << std::endl;
+        move_client.waitForResult(ros::Duration(0.5));
+        auto result = move_client.getResult();
+        std::cout << "gripper result" << result->success << "," << result->error << std::endl;
         is_gripper_lock = false;
         timer.start();
     }
