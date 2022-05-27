@@ -43,6 +43,7 @@ private:
     std::array<float, 4> action;
     geometry_msgs::PoseStamped cartesian_target_pose;
     // const double *gripper_joint;
+    bool is_gripper_lock;
 public:
     NeuralCommander(ros::NodeHandle* nodehandle);
     ~NeuralCommander();
