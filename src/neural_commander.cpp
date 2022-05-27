@@ -97,6 +97,8 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         // int state_start = 3 * 84 * 84;
         int state_start = 3;
         auto obs_acc = observation.accessor<float, 2>();
+        float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2] - float(0.4)};
+        std::cout << step_counter << " current eef position: " << cur_eef_position[0] << ", " << cur_eef_position[1] << ", " << cur_eef_position[2] << std::endl;   
          
         if (abs(action[3]) > 0.5) {
             // should move gripper
@@ -110,10 +112,18 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
             goal.width = width;
             is_gripper_lock = true;
             move_client.sendGoal(goal);
+            // keep arm unmoved
+            cartesian_target_pose.header.frame_id = ref_link_name;
+            cartesian_target_pose.pose.position.x = cur_eef_position[0];
+            cartesian_target_pose.pose.position.y = cur_eef_position[1];
+            cartesian_target_pose.pose.position.z = cur_eef_position[2];
+            cartesian_target_pose.pose.orientation.x = 1.0;
+            cartesian_target_pose.pose.orientation.y = 0.0;
+            cartesian_target_pose.pose.orientation.z = 0.0;
+            cartesian_target_pose.pose.orientation.w = 0.0;
+            cartesian_target_pub.publish(cartesian_target_pose);
         } else {
             // should move arm
-            float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2] - float(0.4)};
-            std::cout << step_counter << " current eef position: " << cur_eef_position[0] << ", " << cur_eef_position[1] << ", " << cur_eef_position[2] << std::endl;
             cartesian_target_pose.header.frame_id = ref_link_name;
             cartesian_target_pose.pose.position.x = cur_eef_position[0] + action[0] * 0.05;
             cartesian_target_pose.pose.position.y = cur_eef_position[1] + action[1] * 0.05;
