@@ -10,6 +10,7 @@ from sensor_msgs.msg import JointState, Image
 from geometry_msgs.msg import PoseStamped
 from aruco_msgs.msg import MarkerArray
 from cv_bridge import CvBridge
+from collections import deque
 
 
 class StateObsPublisher():
@@ -26,7 +27,8 @@ class StateObsPublisher():
         self.finger_joints = np.zeros(2)
         self.target_pos = None
         self.obj_pos = None
-        self.goal = np.array([0.6, -0.1, 0.425])
+        self.obj_pos_obs = deque(maxlen=10)
+        self.goal = np.array([0.5, 0.15, 0.425])
         
         self.tf_listener = tf.TransformListener()
         rospy.Subscriber("franka_state_controller/franka_states",
@@ -69,14 +71,14 @@ class StateObsPublisher():
             observation = np.concatenate(
                 [self.obj_pos, self.eef_pos, self.eef_quaternion, self.finger_joints, 
                  self.target_pos, self.goal])
-            print(observation)
+            print("box pos", self.obj_pos)
             # Huang Tao's input config
             # observation = np.concatenate(
             #     [obs_obj_pose[0], obs_goal, obs_eef_pose[0], obs_eef_pose[1], [obs_finger_width],
             #     obs_obj_pose[0], tf.transformations.euler_from_quaternion(obs_obj_pose[1])]
             # )
             observation = Float32MultiArray(data=observation)
-            print("publish", observation)
+            # print("publish", observation)
             # saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
             #           "finger_width": self.finger_joints, "box": self.obj_pos, "observation": observation}
             # with open("/home/yunfei/Documents/real_data/%d.pkl" % self.step_count, "wb") as f:
@@ -123,7 +125,8 @@ class StateObsPublisher():
             ref_T_marker[:3, 3] = tvec
             O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
             com_obs.append(O_T_center[:3, 3])
-        self.obj_pos = np.mean(np.array(com_obs), axis=0) + np.array([-0.02, 0.02, 0.035]) + np.array([0., 0., 0.4])
+        self.obj_pos_obs.append(np.mean(np.array(com_obs), axis=0) + np.array([0., 0., 0.01]) + np.array([0., 0., 0.4]))
+        self.obj_pos = np.mean(np.array(self.obj_pos_obs), axis=0)
 
 
 if __name__ == "__main__":

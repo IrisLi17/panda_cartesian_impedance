@@ -20,10 +20,11 @@ class ObsPublisher():
         self.eef_quaternion = np.zeros(4)
         self.finger_joints = np.zeros(2)
         self.target_pos = None
-        self.box_goal = np.array([0.3, 0.0, 0.425])
+        self.box_goal = np.array([0.5, 0.1, 0.512])
         self._image_mean = np.array([0.485, 0.456, 0.406]).reshape((1, 1, 3))
         self._image_std = np.array([0.229, 0.224, 0.225]).reshape((1, 1, 3))
-        self.normalized_rgb = np.zeros(3 * 224 * 224)
+        self.normalized_rgb = np.zeros(3 * 84 * 84)
+        self.step_count = 0
         self.bridge = CvBridge()
         rospy.Subscriber("franka_state_controller/franka_states",
                          FrankaState, self.franka_state_callback)
@@ -42,6 +43,8 @@ class ObsPublisher():
                 self.target_pos = self.eef_pos.copy()
             observation = np.concatenate(
                 [self.normalized_rgb, self.eef_pos, self.eef_quaternion, self.finger_joints, self.target_pos, self.box_goal])
+            np.save("/home/yunfei/Documents/real_data/image_obs%d" % self.step_count, observation)
+            self.step_count += 1
             print(observation[-15:])
             observation = Float32MultiArray(data=observation)
             self.obs_pub.publish(observation)

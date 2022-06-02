@@ -95,7 +95,6 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         }
         std::cout << "action: " << action[0] << ", " << action[1] << "," << action[2] << "," << action[3] << std::endl;
         // int state_start = 3 * 84 * 84;
-        int state_start = 3;
         auto obs_acc = observation.accessor<float, 2>();
         float cur_eef_position[3] = {obs_acc[0][state_start], obs_acc[0][state_start + 1], obs_acc[0][state_start + 2] - float(0.4)};
         std::cout << step_counter << " current eef position: " << cur_eef_position[0] << ", " << cur_eef_position[1] << ", " << cur_eef_position[2] << std::endl;   
@@ -108,7 +107,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
             std::cout << step_counter << " current width: " << cur_width << std::endl;
             std::cout << step_counter << " target width: " << width << std::endl;
             franka_gripper::MoveGoal goal;
-            goal.speed = 0.5;
+            goal.speed = 0.1;
             goal.width = width;
             is_gripper_lock = true;
             move_client.sendGoal(goal);
@@ -187,9 +186,10 @@ int main(int argc, char** argv) {
     if (!neural_commander.load_model(argv[1])) {
         return 1;
     }
-    neural_commander.is_recurrent = (atoi(argv[2]) == 1);
+    neural_commander.state_start = atoi(argv[2]);
+    neural_commander.is_recurrent = (atoi(argv[3]) == 1);
     if (neural_commander.is_recurrent) {
-        neural_commander.hidden_state_size = atoi(argv[3]);
+        neural_commander.hidden_state_size = atoi(argv[4]);
     }
     bool result = neural_commander.start();
     if (!result) {

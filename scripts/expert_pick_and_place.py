@@ -24,7 +24,7 @@ class ExpertController(object):
         self._initial_pose_found = False
         self.eef_pos = np.zeros(3)
         self.robot_q = None
-        self.box_pos_obs = deque(maxlen=5)
+        self.box_pos_obs = deque(maxlen=10)
         self.box_pos = None
         self.m_T_center = np.array([
             [1, 0, 0, 0],
@@ -72,8 +72,10 @@ class ExpertController(object):
         self.phase = -1 # for control
         self.gripper_grasp_lock = 0
         self.gripper_open_lock = 0
+
+        self.obs_history = []
         # run pose publisher
-        rospy.Timer(rospy.Duration(0.1),
+        self.timer = rospy.Timer(rospy.Duration(0.1),
                     lambda msg: self.control_callback(msg))
     
     def franka_state_callback(self, msg):
@@ -122,8 +124,18 @@ class ExpertController(object):
             ref_T_marker[:3, 3] = tvec
             O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
             com_obs.append(O_T_center[:3, 3])
-        self.box_pos = np.mean(np.array(com_obs), axis=0) + np.array([-0.03, 0., 0.04])
+        print("N", len(markers), "std", np.std(np.asarray(com_obs), axis=0))
+        self.box_pos_obs.append(np.mean(np.array(com_obs), axis=0))
+        self.box_pos = np.mean(np.array(self.box_pos_obs), axis=0)
         print(self.box_pos)
+        # self.obs_history.append(self.box_pos)
+        # if len(self.obs_history) == 100:
+        #     import matplotlib.pyplot as plt
+        #     plt.plot(np.asarray(self.obs_history)[:, 0])
+        #     plt.plot(np.asarray(self.obs_history)[:, 1])
+        #     plt.plot(np.asarray(self.obs_history)[:, 2])
+        #     plt.show()
+        #     self.timer.stop()
 
     def control_callback(self, msg):
         # try:
@@ -162,7 +174,7 @@ class ExpertController(object):
             self.desired_pose.pose.orientation.z = 0.0
             self.desired_pose.pose.orientation.w = 0.0
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 1e-2:
+            if np.linalg.norm(dpos) < 5e-3:
                 self.phase = 1
         elif self.phase == 1:
             dpos = np.clip(self.box_pos - self.eef_pos, -0.05, 0.05)
@@ -170,7 +182,7 @@ class ExpertController(object):
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 1e-2:
+            if np.linalg.norm(dpos) < 5e-3:
                 self.phase = 2
         elif self.phase == 2:
             if not self.gripper_grasp_lock:

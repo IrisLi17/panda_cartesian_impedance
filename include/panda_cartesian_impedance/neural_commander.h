@@ -48,6 +48,7 @@ public:
     NeuralCommander(ros::NodeHandle* nodehandle);
     ~NeuralCommander();
     int step_counter;
+    int state_start;
     bool is_recurrent;
     int hidden_state_size;
     bool load_model(const char*);

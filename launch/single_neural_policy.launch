@@ -4,6 +4,7 @@
     <arg name="load_gripper" default="true" />
     <arg name="eye_on_hand" default="false" />
     <arg name="use_marker" default="true" />
+    <arg name="markerSize" default="0.037" />
 
     <include file="$(find easy_handeye)/launch/publish.launch">
         <arg name="eye_on_hand" value="$(arg eye_on_hand)" />
@@ -30,7 +31,6 @@
 
     <!-- fill in the following parameters according to your tracking system -->
     <group if="$(arg use_marker)" >
-        <arg name="markerSize" default="0.04" />
         <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch">
             <arg name="markerSize" value="$(arg markerSize)" />
         </include>
@@ -47,8 +47,10 @@
     <arg name="load_path" />
     <arg name="is_recurrent" default="0" />
     <arg name="hidden_size" default="128" />
+    <arg name="state_start" value="3" if="$(arg use_marker)" />
+    <arg name="state_start" value="21168" unless="$(arg use_marker)" />
     <node name="neural_commander" pkg="panda_cartesian_impedance" type="neural_commander" required="true" output="screen"
-     args="$(arg load_path) $(arg is_recurrent) $(arg hidden_size)">
+     args="$(arg load_path) $(arg state_start) $(arg is_recurrent) $(arg hidden_size)">
         <remap from="equilibrium_pose" to="cartesian_ik_controller/equilibrium_pose" />
     </node>
     <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" required="false" />
