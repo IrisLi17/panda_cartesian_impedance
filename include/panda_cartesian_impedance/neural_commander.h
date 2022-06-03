@@ -15,7 +15,7 @@
 class NeuralCommander
 {
 private:
-    // void franka_state_callback(const franka_msgs::FrankaState::ConstPtr&);
+    void franka_state_callback(const franka_msgs::FrankaState::ConstPtr&);
     void marker_tf_callback();
     void timer_callback(const ros::TimerEvent&);
     void obs_callback(const std_msgs::Float32MultiArray::ConstPtr&);
@@ -27,14 +27,14 @@ private:
     actionlib::SimpleActionClient<franka_gripper::MoveAction> move_client;
     /* data */
     ros::NodeHandle node_handle;
-    // ros::Subscriber franka_state_sub;
+    ros::Subscriber franka_state_sub;
     // ros::Subscriber gripper_joint_sub;
     ros::Publisher cartesian_target_pub;
     tf::TransformListener tf_listener;
     ros::Timer timer;
     std::string marker_link_name;
     std::string ref_link_name;
-    // tf::Pose eef_pose;
+    tf::Pose eef_pose;
     tf::Pose marker_pose;
     torch::jit::Module policy;
     torch::Tensor observation;
@@ -44,6 +44,8 @@ private:
     geometry_msgs::PoseStamped cartesian_target_pose;
     // const double *gripper_joint;
     bool is_gripper_lock;
+    bool is_grasp_lock;
+    franka_gripper::GraspEpsilon epsilon;
 public:
     NeuralCommander(ros::NodeHandle* nodehandle);
     ~NeuralCommander();

@@ -35,7 +35,11 @@
             <arg name="markerSize" value="$(arg markerSize)" />
         </include>
         <!-- read object pose from marker, and command the arm !-->
-        <node name="obs_publisher" pkg="panda_cartesian_impedance" type="obs_publisher.py" required="true" output="screen">
+        <!--node name="obs_publisher" pkg="panda_cartesian_impedance" type="obs_publisher.py" required="true" output="screen">
+            <param name="link_name" value="panda_link0" />
+            <param name="markers_topic" value="marker_publisher/markers" />
+        </node!-->
+        <node name="obs_publisher" pkg="panda_cartesian_impedance" type="obs_handover_publisher.py" required="true" output="screen">
             <param name="link_name" value="panda_link0" />
             <param name="markers_topic" value="marker_publisher/markers" />
         </node>
