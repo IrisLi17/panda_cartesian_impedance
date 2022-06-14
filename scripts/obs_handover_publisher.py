@@ -31,16 +31,17 @@ class StateObsPublisher():
         self.obj1_pos_obs = deque(maxlen=10)
         self.obj2_pos = None
         self.obj2_pos_obs = deque(maxlen=10)
-        self.goal1 = np.array([-0.2, 0.0, 0.42])
-        self.goal2 = np.array([-0.4 ,-0.2, 0.42])
+        self.goal1 = np.array([-0.45, 0.0, 0.42])
+        self.goal2 = np.array([-0.3 ,-0.2, 0.42])
         self.offset = None
         self.goal_mean = np.array([0.0, 0.0, 0.52])
         self.goal_std = np.array([0.55, 0.15, 0.1])
 
-        self.marker1_id = [8, 17, 15]
+        self.marker1_id = [8, 9]
         self.marker2_id = [18, 16]
         
-        self.marker_right_id = [15]
+        self.marker_right_id = []
+        self.marker_left_id = []
         self.tf_listener = tf.TransformListener()
         rospy.Subscriber("franka_state_controller/franka_states",
                          FrankaState, self.franka_state_callback)
@@ -58,8 +59,14 @@ class StateObsPublisher():
                 [0, 0, 0, 1]
             ])
         self.mr_T_center = np.array([
-            [1, 0, 0, -0.04],
+            [1, 0, 0, -0.044],
             [0, 1, 0, 0],
+            [0, 0, 1, -0.02],
+            [0, 0, 0, 1]
+        ])
+        self.ml_T_center = np.array([
+            [1, 0, 0, 0.045],
+            [0, 1, 0 ,0 ],
             [0, 0, 1, -0.02],
             [0, 0, 0, 1]
         ])
@@ -83,7 +90,7 @@ class StateObsPublisher():
             
                 # obs_obj2_pos = np.array([self.obj2_pos[1], -self.obj2_pos[0], self.obj2_pos[2]]) + self.offset
             
-                self.goal1 = obs_obj1_pos + np.array([-0.2, 0.0, 0.0])
+                # self.goal1 = obs_obj1_pos + np.array([-0.2 * 0, 0.0, 0.0])
             # observation = np.concatenate(
             #     [self.obj_pos, self.eef_pos, self.eef_quaternion, self.finger_joints, 
             #      self.target_pos, self.goal])
@@ -149,10 +156,13 @@ class StateObsPublisher():
             ref_T_marker[:3, 3] = tvec
             if marker_id in self.marker_right_id:
                 O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.mr_T_center)
+            elif marker_id in self.marker_left_id:
+                O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.ml_T_center)
             else:
                 O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
             if marker_id in self.marker1_id:
-                com_obs_1.append(O_T_center[:3, 3] + np.array([-0.015, 0.0, 0.0]))
+                print(marker_id, O_T_center[:3, 3])
+                com_obs_1.append(O_T_center[:3, 3] + np.array([-0.015 * 0, 0.0, 0.0]))
             elif marker_id in self.marker2_id:
                 com_obs_2.append(O_T_center[:3, 3] + np.array([0.0, 0.0, 0.0]))
         if len(com_obs_1):

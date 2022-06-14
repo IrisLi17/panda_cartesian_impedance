@@ -70,6 +70,7 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         std::vector<torch::jit::IValue> inputs;
         // inputs.push_back(observation);
         inputs.push_back(torch::clone(observation));
+        // inputs.push_back(torch::zeros_like(observation));
         if (is_recurrent) {
             inputs.push_back(recurrent_hidden_state);
             inputs.push_back(recurrent_mask);
@@ -98,6 +99,9 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
         // hack
         // if (step_counter % 5 == 0) action[3] = 1.0;
         // else action[3] = -1.0;
+
+        std::cout << "cpp observation:" << inputs[0].toTensor() << std::endl;
+        
         std::cout << "action: " << action[0] << ", " << action[1] << "," << action[2] << "," << action[3] << std::endl;
         // int state_start = 3 * 84 * 84;
         auto obs_acc = observation.accessor<float, 2>();
@@ -172,8 +176,8 @@ void NeuralCommander::timer_callback(const ros::TimerEvent &e) {
             } else if (cartesian_target_pose.pose.position.y >= 0.35) {
                 cartesian_target_pose.pose.position.y = 0.35;
             }
-            if (cartesian_target_pose.pose.position.z <= 0.025) {
-                cartesian_target_pose.pose.position.z = 0.025;
+            if (cartesian_target_pose.pose.position.z <= 0.12) {
+                cartesian_target_pose.pose.position.z = 0.12;
             } else if (cartesian_target_pose.pose.position.z >= 0.7) {
                 cartesian_target_pose.pose.position.z = 0.7;
             }
