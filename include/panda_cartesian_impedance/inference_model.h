@@ -17,6 +17,7 @@ private:
     torch::jit::Module policy;
     torch::Tensor observation;
     std::array<float, 4> action;
+    std_msgs::Float32MultiArray action_msg;
 public:
     ModelInference(ros::NodeHandle* nodehandle);
     ~ModelInference();

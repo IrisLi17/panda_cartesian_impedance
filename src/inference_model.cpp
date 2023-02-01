@@ -54,7 +54,11 @@ void ModelInference::obs_callback(const std_msgs::Float32MultiArray::ConstPtr& m
     
     std::cout << "action: " << action[0] << ", " << action[1] << "," << action[2] << "," << action[3] << std::endl;
     
-    action_pub.publish(action);
+    action_msg.data.clear();
+    for (int i=0; i<4; i++) {
+        action_msg.data.push_back(action[i]);
+    }
+    action_pub.publish(action_msg);
 }
 
 bool ModelInference::load_model(const char* file_name) {
