@@ -81,20 +81,20 @@ target_include_directories(panda_cartesian_impedance PUBLIC
   include
 )
 
-add_executable(neural_commander src/neural_commander.cpp)
-target_link_libraries(neural_commander PUBLIC
+add_executable(inference_model src/inference_model.cpp)
+target_link_libraries(inference_model PUBLIC
   ${Franka_LIBRARIES}
   ${catkin_LIBRARIES}
   ${TORCH_LIBRARIES}
 )
 
-target_include_directories(neural_commander SYSTEM PUBLIC
+target_include_directories(inference_model SYSTEM PUBLIC
   ${Franka_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
-target_include_directories(neural_commander PUBLIC
+target_include_directories(inference_model PUBLIC
   include
 )
 

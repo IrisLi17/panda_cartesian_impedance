@@ -1,0 +1,56 @@
+<?xml version="1.0" ?>
+<launch>
+  <!--Be sure to pass the IPs of your pandas like robot_ips:={panda_1/robot_ip: <my_ip_1>, panda_2/robot_ip: <my_ip_2>}   -->
+  <arg name="robot1_ip" />
+  <arg name="robot2_ip" />
+
+  <arg name="markerSize" default="0.037" />
+  <arg name="robot_id" default="panda_dual" />
+  <arg name="rviz" default="true" />
+  <arg name="rqt" default="true" />
+  
+  <!--control stack-->
+  <include file="$(find franka_control)/launch/franka_combined_control.launch" >
+    <arg name="robot_id" value="$(arg robot_id)" />
+    <!--arg name="robot_ips" value="$(arg robot_ips)" /!-->
+    <arg name="robot_ips" value="{panda_1/robot_ip: $(arg robot1_ip), panda_2/robot_ip: $(arg robot2_ip)}" />
+  </include>
+
+  <include ns="panda_1" file="$(find franka_gripper)/launch/franka_gripper.launch">
+    <arg name="robot_ip" value="$(arg robot1_ip)" />
+  </include>
+
+  <include ns="panda_2" file="$(find franka_gripper)/launch/franka_gripper.launch">
+    <arg name="robot_ip" value="$(arg robot2_ip)" />
+  </include>
+
+  <rosparam command="load" file="$(find panda_cartesian_impedance)/config/cartesian_impedance_controllers.yaml" />
+  <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen"  args="dual_arm_cartesian_impedance_controller"/>
+  <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" required="false" if="$(arg rqt)"/>
+  <!--node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find franka_example_controllers)/launch/rviz/franka_dual_description_with_marker.rviz" if="$(arg rviz)"/!-->
+
+  <!-- tracking system -->
+  <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch">
+    <arg name="markerSize" value="$(arg markerSize)" />
+  </include>
+  <!-- get obs -->
+  <node name="obs_publisher" pkg="panda_cartesian_impedance" type="obs_handover_publisher.py" required="true" output="screen">
+    <param name="link_name" value="panda_link0" />
+    <param name="markers_topic" value="marker_publisher/markers" />
+  </node>
+  <arg name="load_path" />
+  <arg name="is_recurrent" default="0" />
+  <arg name="hidden_size" default="128" />
+  <arg name="state_start" value="3" if="$(arg use_marker)" />
+  <arg name="state_start" value="21168" unless="$(arg use_marker)" />
+  <node name="inference_model" pkg="panda_cartesian_impedance" type="inference_model" required="true" output="screen"
+     args="$(arg load_path) $(arg state_start) $(arg is_recurrent) $(arg hidden_size)">
+  </node>
+  <!-- send action to controllers -->
+  <node name="dual_pose_commander" pkg="panda_cartesian_impedance" type="process_handover_action.py" required="true" output="screen" >
+    <param name="left_link_name" value="panda_1_link0" />
+    <param name="right_link_name" value="panda_2_link0" />
+    <remap from="equilibrium_pose" to="dual_arm_cartesian_impedance_controller/dual_arm_target_pose" />
+  </node>
+
+</launch>
