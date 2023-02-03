@@ -15,11 +15,14 @@ from sensor_msgs.msg import JointState
 from sensor_msgs.msg import Image
 from aruco_msgs.msg import MarkerArray
 from cv_bridge import CvBridge
-import pickle
 
 
 class ExpertController(object):
     def __init__(self):
+        self.obj_goal_tag = {
+            '0': [[9], 1],
+        }
+
         self.desired_pose = PoseStamped()
         self._initial_pose_found = False
         self.eef_pos = np.zeros(3)

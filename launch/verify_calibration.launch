@@ -5,10 +5,15 @@
     <arg name="namespace_prefix" default="panda_eob_calib" unless="$(arg eye_on_hand)"/>
     <arg name="robot_ip" />
 
-    <include file="$(find easy_handeye)/launch/publish.launch">
+    <!-- <include file="$(find easy_handeye)/launch/publish.launch">
         <arg name="eye_on_hand" value="$(arg eye_on_hand)" />
         <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
-    </include>
+    </include> -->
+
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.878028808372 -0.02495421652 0.657235373369 -0.626193362896 -0.746154834535 0.159986180492 0.159810066065 world camera_link"/>
+
+
+    <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
     
     <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch">

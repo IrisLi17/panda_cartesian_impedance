@@ -5,13 +5,15 @@
     <arg name="eye_on_hand" default="false" />
     <arg name="markerSize" default="0.04" />
 
-    <include file="$(find easy_handeye)/launch/publish.launch">
+    <!-- <include file="$(find easy_handeye)/launch/publish.launch">
         <arg name="eye_on_hand" value="$(arg eye_on_hand)" />
         <arg name="namespace_prefix" value="panda_eob_calib" unless="$(arg eye_on_hand)"/>
         <arg name="namespace_prefix" value="panda_eih_calib" if="$(arg eye_on_hand)" />
-    </include>
+    </include> -->
 
-    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.88396365 -0.026333976048695515 0.6686705202130805 0.6325118990667172 0.7389738209313085 -0.17506762596772985 -0.15230796386013548 world camera_link"/>
+
+    <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
     
     <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
     <include file="$(find franka_control)/launch/franka_control.launch" >
