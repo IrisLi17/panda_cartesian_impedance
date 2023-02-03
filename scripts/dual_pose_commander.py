@@ -29,8 +29,8 @@ def publisherCallback(msg, left_link_name, right_link_name):
     if step_count < 500:
         marker_pose.left_pose.header.frame_id = left_link_name
         marker_pose.left_pose.header.stamp = rospy.Time(0)
-        marker_pose.left_pose.pose.position.x = 0.5 + 0.2 * math.sin(step_count / 50.0 * math.pi)
-        marker_pose.left_pose.pose.position.y = 0.3 * math.sin(step_count / 100.0 * math.pi)
+        marker_pose.left_pose.pose.position.x = 0.5 + 0.1 * math.sin(step_count / 50.0 * math.pi)
+        marker_pose.left_pose.pose.position.y = 0.1 * math.sin(step_count / 100.0 * math.pi)
         marker_pose.left_pose.pose.orientation.x = -math.sqrt(2) / 2.0
         marker_pose.left_pose.pose.orientation.y = math.sqrt(2) / 2.0
         marker_pose.left_pose.pose.orientation.z = 0.0
@@ -39,7 +39,7 @@ def publisherCallback(msg, left_link_name, right_link_name):
         marker_pose.right_pose.header.frame_id = right_link_name
         marker_pose.right_pose.header.stamp = rospy.Time(0)
         marker_pose.right_pose.pose.position.x = 0.5
-        marker_pose.right_pose.pose.position.y = 0.3 * math.sin(step_count / 100.0 * math.pi)
+        marker_pose.right_pose.pose.position.y = 0.1 * math.sin(step_count / 100.0 * math.pi)
         marker_pose.right_pose.pose.position.z = 0.4 + 0.1 * math.sin(step_count / 50.0 * math.pi)
         marker_pose.right_pose.pose.orientation.x = 1.0
         marker_pose.right_pose.pose.orientation.y = 0.0
@@ -84,16 +84,16 @@ def franka_state_callback(msg, id):
         right_initial_pose_found = True
 
 
-def move_gripper_to(msg, id, width, speed=0.1):
+def move_gripper_to(msg, id, width, speed=0.1, block=True):
     goal = franka_gripper.msg.MoveGoal(width=width, speed=speed)
     if id == 1:
-        left_gripper_move_client.send_goal(goal)
-        # left_gripper_move_client.wait_for_result()
-        # return left_gripper_move_client.get_result()
+        client = left_gripper_move_client
     elif id == 2:
-        right_gripper_move_client.send_goal(goal)
+        client = right_gripper_move_client
+    if block:
+        client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(3))
     else:
-        raise RuntimeError
+        client.send_goal(goal)
 
 
 def gripper_homing(msg, id):

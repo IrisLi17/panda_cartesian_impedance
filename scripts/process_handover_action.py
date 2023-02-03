@@ -103,7 +103,7 @@ def move_gripper_to(msg, id, width, speed=0.1, block=True):
     else:
         raise RuntimeError
     if block:
-        client.send_goal_and_wait(goal) # TODO: timeout
+        client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(3)) # TODO: timeout
     else:
         client.send_goal(goal)
 
@@ -117,7 +117,7 @@ def gripper_homing(msg, id, block=True):
     else:
         raise RuntimeError
     if block:
-        client.send_goal_and_wait(goal)
+        client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(3))
     else:
         client.send_goal(goal)
 
@@ -130,7 +130,7 @@ def gripper_grasp(msg, id, width, speed=0.05, force=10, inner_epsilon=0.0, outer
     elif id == 2:
         client = right_gripper_grasp_client
     if block:
-        client.send_goal_and_wait(goal)
+        client.send_goal_and_wait(goal, execute_timeout=rospy.Duration(3))
     else:
         client.send_goal(goal)
 
