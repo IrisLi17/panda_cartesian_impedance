@@ -10,8 +10,7 @@
         <arg name="namespace_prefix" value="$(arg namespace_prefix)" />
     </include> -->
 
-    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.878028808372 -0.02495421652 0.657235373369 -0.626193362896 -0.746154834535 0.159986180492 0.159810066065 world camera_link"/>
-
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.8073418735153907 0.08408076947494328 0.4628911890570747 0.6959747938926792 0.68032001124097 -0.165550968752189 -0.1593004874956155 world camera_link"/>
 
     <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
     

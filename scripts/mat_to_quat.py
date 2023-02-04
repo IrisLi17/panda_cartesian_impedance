@@ -33,7 +33,5 @@ def main(path):
 
     print(f'{disp_inv[0]} {disp_inv[1]} {disp_inv[2]} {quat_inv[0]} {quat_inv[1]} {quat_inv[2]} {quat_inv[3]}')
 
-    print(data)
-
 if __name__ == '__main__':
     main('/home/sqz/projects/fairo/polymetis/calib_handeye.pkl')

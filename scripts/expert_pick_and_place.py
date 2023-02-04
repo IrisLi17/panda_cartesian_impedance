@@ -6,8 +6,9 @@ import numpy as np
 import math
 import actionlib
 from collections import deque
+import tf2_ros
 
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, TransformStamped, Pose
 from franka_msgs.msg import FrankaState
 import franka_gripper
 import franka_gripper.msg
@@ -19,9 +20,12 @@ from cv_bridge import CvBridge
 
 class ExpertController(object):
     def __init__(self):
-        self.obj_goal_tag = {
-            '0': [[9], 1],
-        }
+        # for aruco, the first number 1-object left id  2-object right id 3-goal id
+        self.obj_tags = np.array([[42]])
+        self.goal_tags = np.array([31])
+
+        # create tf2 boardcaster
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         self.desired_pose = PoseStamped()
         self._initial_pose_found = False
@@ -29,10 +33,12 @@ class ExpertController(object):
         self.robot_q = None
         self.box_pos_obs = deque(maxlen=10)
         self.box_pos = None
+        self.goal_pos_obs = deque(maxlen=10)
+        self.goal_pos = None
         self.m_T_center = np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0],
-            [0, 0, 1, -0.025],
+            [0, 0, 1, -0.02],
             [0, 0, 0, 1]
         ])
         self.finger_width = 0.08
@@ -120,17 +126,35 @@ class ExpertController(object):
         com_obs = []
         for i in range(len(markers)):
             marker_id = markers[i].id  # useful to filter when tracking multiple objects
+            # publish marker to tf tree with tf2
             pose = markers[i].pose.pose
-            tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
-            rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
-            ref_T_marker = tf.transformations.quaternion_matrix(rvec)
-            ref_T_marker[:3, 3] = tvec
-            O_T_center = np.matmul(np.matmul(O_T_ref, ref_T_marker), self.m_T_center)
-            com_obs.append(O_T_center[:3, 3])
-        print("N", len(markers), "std", np.std(np.asarray(com_obs), axis=0))
-        self.box_pos_obs.append(np.mean(np.array(com_obs), axis=0))
-        self.box_pos = np.mean(np.array(self.box_pos_obs), axis=0)
-        print(self.box_pos)
+            # directly publish the pose to tf tree
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = ref_frame
+            t.child_frame_id = "marker_" + str(marker_id)
+            t.transform.translation.x = pose.position.x
+            t.transform.translation.y = pose.position.y
+            t.transform.translation.z = pose.position.z
+            t.transform.rotation.x = pose.orientation.x
+            t.transform.rotation.y = pose.orientation.y
+            t.transform.rotation.z = pose.orientation.z
+            t.transform.rotation.w = pose.orientation.w
+            self.tf_broadcaster.sendTransform(t)
+            if marker_id == self.obj_tags[0,0]:
+                pose = markers[i].pose.pose
+                tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
+                rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+                ref_T_marker = tf.transformations.quaternion_matrix(rvec)
+                ref_T_marker[:3, 3] = tvec
+                O_T_center = np.matmul(O_T_ref, ref_T_marker)
+                pos = O_T_center[:3, 3]
+                pos[2] -= 0.03
+                com_obs.append(pos)
+                print("N", len(markers), "std", np.std(np.asarray(com_obs), axis=0))
+                self.box_pos_obs.append(np.mean(np.array(com_obs), axis=0))
+                self.box_pos = np.mean(np.array(self.box_pos_obs), axis=0)
+                print('box_pos', self.box_pos)
         # self.obs_history.append(self.box_pos)
         # if len(self.obs_history) == 100:
         #     import matplotlib.pyplot as plt
@@ -141,25 +165,6 @@ class ExpertController(object):
         #     self.timer.stop()
 
     def control_callback(self, msg):
-        # try:
-        #     tvec, rvec = self.tf_listener.lookupTransform(self.link_name, self.marker_link, rospy.Time())
-        #     O_T_marker = tf.transformations.quaternion_matrix(rvec)
-        #     O_T_marker[:3, 3] = np.array(tvec)
-        #     # O_T_marker[1, 3] -= 0.05
-        #     # O_T_marker[0, 3] += 0.01
-        #     O_T_center = np.matmul(O_T_marker, self.m_T_center)
-        #     self.box_pos_obs.append(O_T_center[:3, 3])
-        #     self.box_pos = np.mean(np.stack(self.box_pos_obs, axis=0), axis=0)
-        #     print(O_T_marker[:3, 3], self.box_pos)
-        #     saved_data = {"image": self.rgb_image, "q": self.robot_q, "eef_pos": self.eef_pos, 
-        #               "finger_width": self.finger_width, "box": O_T_center[:3, 3]}
-        #     with open("/home/yunfei/Documents/expert_data/%d.pkl" % self.step_count, "wb") as f:
-        #         pickle.dump(saved_data, f)
-        #     self.step_count += 1
-        #     if self.phase == -1:
-        #         self.phase = 0
-        # except:
-        #     print("Box pos not received")
         if self.box_pos is None:
             print("Box pos not received")
             return
@@ -168,26 +173,37 @@ class ExpertController(object):
             self.phase = 0
         
         if self.phase == 0:
-            dpos = np.clip(self.box_pos + np.array([0, 0, 0.1]) - self.eef_pos, -0.05 ,0.05)
+            self.last_obj_pos = None
+            # pregrasp phase
+            dpos = np.clip(self.box_pos + np.array([0, 0, 0.1]) - self.eef_pos, -0.1 ,0.1)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
+            # self.desired_pose.pose.position.x = self.box_pos[0]
+            # self.desired_pose.pose.position.y = self.box_pos[1]
+            # self.desired_pose.pose.position.z = self.box_pos[2] + 0.1
             self.desired_pose.pose.orientation.x = 1.0
             self.desired_pose.pose.orientation.y = 0.0
             self.desired_pose.pose.orientation.z = 0.0
             self.desired_pose.pose.orientation.w = 0.0
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 5e-3:
+            if np.linalg.norm(dpos) < 1e-2:
                 self.phase = 1
+                self.last_obj_pos = self.box_pos
         elif self.phase == 1:
-            dpos = np.clip(self.box_pos - self.eef_pos, -0.05, 0.05)
+            if self.last_obj_pos is None:
+                print('Error: last_obj_pos is None')
+                exit()
+            # grasp phase
+            dpos = np.clip(self.last_obj_pos - self.eef_pos, -0.05, 0.05)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 5e-3:
+            if np.linalg.norm(dpos) < 1e-2:
                 self.phase = 2
         elif self.phase == 2:
+            # close gripper phase
             if not self.gripper_grasp_lock:
                 epsilon = franka_gripper.msg.GraspEpsilon(inner=0.01, outer=0.01)
                 goal = franka_gripper.msg.GraspGoal(
@@ -202,6 +218,7 @@ class ExpertController(object):
                 self.gripper_grasp_lock = 0
                 self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + 0.1]
         elif self.phase == 3:
+            # lift phase
             # epsilon = franka_gripper.msg.GraspEpsilon(inner=0.01, outer=0.01)
             # goal = franka_gripper.msg.GraspGoal(
             #     width=0.05, speed=0.1, epsilon=epsilon, force=1)

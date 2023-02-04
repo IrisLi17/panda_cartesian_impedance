@@ -1,9 +1,9 @@
 <?xml version="1.0" ?>
 <launch>
-    <arg name="robot_ip" />
+    <arg name="robot_ip" default="192.168.1.110"/>
     <arg name="load_gripper" default="true" />
     <arg name="eye_on_hand" default="false" />
-    <arg name="markerSize" default="0.04" />
+    <arg name="markerSize" default="0.03" />
 
     <!-- <include file="$(find easy_handeye)/launch/publish.launch">
         <arg name="eye_on_hand" value="$(arg eye_on_hand)" />
@@ -11,7 +11,7 @@
         <arg name="namespace_prefix" value="panda_eih_calib" if="$(arg eye_on_hand)" />
     </include> -->
 
-    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.88396365 -0.026333976048695515 0.6686705202130805 0.6325118990667172 0.7389738209313085 -0.17506762596772985 -0.15230796386013548 world camera_link"/>
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.8073418735153907 0.08408076947494328 0.4628911890570747 0.6959747938926792 0.68032001124097 -0.165550968752189 -0.1593004874956155 world camera_link"/>
 
     <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
     
