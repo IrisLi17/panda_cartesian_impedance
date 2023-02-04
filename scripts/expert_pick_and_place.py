@@ -20,9 +20,38 @@ from cv_bridge import CvBridge
 
 class ExpertController(object):
     def __init__(self):
-        # for aruco, the first number 1-object left id  2-object right id 3-goal id
-        self.obj_tags = np.array([[42]])
-        self.goal_tags = np.array([31])
+        self.num_obj = 2
+        self.obj_tags = np.array([0, 1])
+        self.goal_tags = np.array([10, 31])
+        self.grasp_disp = np.array([0.01, 0.075, 0.005])
+        self.goal_disp = np.array([0.06, 0.0, 0.005])
+        self.lift_height = 0.15
+        self.reach_thereshold = 0.08
+        self.control_err = 0.02
+
+        self.obj_width = 0.04
+        self.gripper_force = 0.1
+        self.min_height = 0.03
+
+        self.obj_pos = np.zeros((self.num_obj, 3))
+        self.g_pos = np.zeros((self.num_obj, 3))
+        self.obj_angle = np.zeros((self.num_obj, 1))
+        self.obj_pos_his, self.goal_pos_his, self.obj_angle_his = [], [], []
+        # NOTE: using 
+        for _ in range(self.num_obj):
+            self.obj_pos_his.append(deque(maxlen=10))
+            self.goal_pos_his.append(deque(maxlen=10))
+            self.obj_angle_his.append(deque(maxlen=10))
+
+        self.current_obj_id = 0
+        self.target_obj_pos = np.zeros(3)
+        self.target_obj_angle = 0
+        # create object rotating matrix from object angle
+        self.target_obj_rot_mat = np.array([[np.cos(self.target_obj_angle), -np.sin(self.target_obj_angle), 0],
+                                        [np.sin(self.target_obj_angle), np.cos(self.target_obj_angle), 0],
+                                        [0, 0, 1]])
+        self.target_goal_pos = np.zeros(3)
+
 
         # create tf2 boardcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -31,16 +60,8 @@ class ExpertController(object):
         self._initial_pose_found = False
         self.eef_pos = np.zeros(3)
         self.robot_q = None
-        self.box_pos_obs = deque(maxlen=10)
-        self.box_pos = None
+        self.target_obj_pos_obs = deque(maxlen=10)
         self.goal_pos_obs = deque(maxlen=10)
-        self.goal_pos = None
-        self.m_T_center = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, -0.02],
-            [0, 0, 0, 1]
-        ])
         self.finger_width = 0.08
         self.step_count = 0
         state_sub = rospy.Subscriber(
@@ -141,88 +162,114 @@ class ExpertController(object):
             t.transform.rotation.z = pose.orientation.z
             t.transform.rotation.w = pose.orientation.w
             self.tf_broadcaster.sendTransform(t)
-            if marker_id == self.obj_tags[0,0]:
-                pose = markers[i].pose.pose
-                tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
-                rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
-                ref_T_marker = tf.transformations.quaternion_matrix(rvec)
-                ref_T_marker[:3, 3] = tvec
-                O_T_center = np.matmul(O_T_ref, ref_T_marker)
-                pos = O_T_center[:3, 3]
-                pos[2] -= 0.03
-                com_obs.append(pos)
-                print("N", len(markers), "std", np.std(np.asarray(com_obs), axis=0))
-                self.box_pos_obs.append(np.mean(np.array(com_obs), axis=0))
-                self.box_pos = np.mean(np.array(self.box_pos_obs), axis=0)
-                print('box_pos', self.box_pos)
-        # self.obs_history.append(self.box_pos)
-        # if len(self.obs_history) == 100:
-        #     import matplotlib.pyplot as plt
-        #     plt.plot(np.asarray(self.obs_history)[:, 0])
-        #     plt.plot(np.asarray(self.obs_history)[:, 1])
-        #     plt.plot(np.asarray(self.obs_history)[:, 2])
-        #     plt.show()
-        #     self.timer.stop()
+            if marker_id in self.obj_tags:
+                # get marker_id index in self.obj_tags
+                obj_id = np.where(self.obj_tags == marker_id)[0][0]
+                ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, t.child_frame_id, rospy.Time())
+                # get euler angle from quaternion
+                euler_angle = tf.transformations.euler_from_quaternion(ref_rvec)
+                self.obj_pos_his[obj_id].append(ref_tvec)
+                self.obj_angle_his[obj_id].append(euler_angle[2])
+            if marker_id in self.goal_tags:
+                # get marker_id index in self.obj_tags
+                goal_id = np.where(self.goal_tags == marker_id)[0][0]
+                ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, t.child_frame_id, rospy.Time())
+                self.goal_pos_his[goal_id].append(ref_tvec)
+        for i in range(self.num_obj):
+            # set self.obj_pos to the mean of self.obj_pos_his
+            self.obj_pos[i] = np.mean(np.asarray(self.obj_pos_his[i]), axis=0)
+            self.obj_angle[i] = np.mean(np.asarray(self.obj_angle_his[i]), axis=0)
+            self.g_pos[i] = np.mean(np.asarray(self.goal_pos_his[i]), axis=0) + self.goal_disp
+            self.g_pos[i][2] = 0.02
+            # if marker_id == self.obj_tags[0]:
+            #     pose = markers[i].pose.pose
+            #     tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
+            #     rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+            #     ref_T_marker = tf.transformations.quaternion_matrix(rvec)
+            #     ref_T_marker[:3, 3] = tvec
+            #     O_T_center = np.matmul(O_T_ref, ref_T_marker)
+            #     pos = O_T_center[:3, 3]
+            #     pos[2] -= 0.02
+            #     com_obs.append(pos)
+            #     print("N", len(markers), "std", np.std(np.asarray(com_obs), axis=0))
+            #     self.target_obj_pos_obs.append(np.mean(np.array(com_obs), axis=0))
+            #     self.target_obj_pos = np.mean(np.array(self.target_obj_pos_obs), axis=0)
+            #     print('box_pos', self.target_obj_pos)
 
     def control_callback(self, msg):
-        if self.box_pos is None:
-            print("Box pos not received")
-            return
+        if self.phase == -2:
+            if np.all(self.obj_pos == 0):
+                print("Box pos not received")
+            elif np.all(self.g_pos == 0):
+                print("Goal pos not received")
+            else:
+                self.phase = -1
         
         elif self.phase == -1:
-            self.phase = 0
+            # planning phase
+            self.current_obj_id = self.get_next_obj_id()
+            if self.current_obj_id == -1:
+                print("All objects are done")
+                self.phase = -2
+            else:
+                self.target_obj_pos = self.obj_pos[self.current_obj_id]
+                self.target_obj_angle = self.obj_angle[self.current_obj_id]
+                self.target_obj_rot_mat = np.array([[np.cos(self.target_obj_angle), -np.sin(self.target_obj_angle), 0],
+                                                    [np.sin(self.target_obj_angle), np.cos(self.target_obj_angle), 0],
+                                                    [0, 0, 1]])
+                self.target_goal_pos = self.g_pos[self.current_obj_id]
+                self.phase = 0
         
         if self.phase == 0:
-            self.last_obj_pos = None
             # pregrasp phase
-            dpos = np.clip(self.box_pos + np.array([0, 0, 0.1]) - self.eef_pos, -0.1 ,0.1)
+            dpos = np.clip(self.target_obj_pos+ np.matmul(self.target_obj_rot_mat, self.grasp_disp) + np.array([0, 0, self.lift_height]) - self.eef_pos, -0.1 ,0.1)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
-            # self.desired_pose.pose.position.x = self.box_pos[0]
-            # self.desired_pose.pose.position.y = self.box_pos[1]
-            # self.desired_pose.pose.position.z = self.box_pos[2] + 0.1
-            self.desired_pose.pose.orientation.x = 1.0
-            self.desired_pose.pose.orientation.y = 0.0
+            angle = (np.pi/2-self.target_obj_angle)/2
+            self.desired_pose.pose.orientation.x = np.sin(angle)
+            self.desired_pose.pose.orientation.y = np.cos(angle)
             self.desired_pose.pose.orientation.z = 0.0
             self.desired_pose.pose.orientation.w = 0.0
+            
+            # open gripper
+            if not self.gripper_open_lock:
+                goal = franka_gripper.msg.MoveGoal(width=0.08, speed=0.1)
+                self.gripper_move_client.send_goal(goal)
+                self.gripper_open_lock = 1
+            if self.gripper_open_lock and self.finger_width > 0.078:
+                self.gripper_move_client.cancel_all_goals()
+                self.gripper_open_lock = 0
+
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 1e-2:
+            if np.linalg.norm(dpos) < self.control_err:
                 self.phase = 1
-                self.last_obj_pos = self.box_pos
         elif self.phase == 1:
-            if self.last_obj_pos is None:
-                print('Error: last_obj_pos is None')
-                exit()
             # grasp phase
-            dpos = np.clip(self.last_obj_pos - self.eef_pos, -0.05, 0.05)
+            dpos = np.clip(self.target_obj_pos + np.matmul(self.target_obj_rot_mat, self.grasp_disp) - self.eef_pos, -0.05, 0.05)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
-            if np.linalg.norm(dpos) < 1e-2:
+            if np.linalg.norm(dpos) < self.control_err:
                 self.phase = 2
         elif self.phase == 2:
             # close gripper phase
             if not self.gripper_grasp_lock:
-                epsilon = franka_gripper.msg.GraspEpsilon(inner=0.01, outer=0.01)
+                epsilon = franka_gripper.msg.GraspEpsilon(inner=0.02, outer=0.01)
                 goal = franka_gripper.msg.GraspGoal(
-                    width=0.05, speed=0.1, epsilon=epsilon, force=1)
+                    width=self.obj_width, speed=0.1, epsilon=epsilon, force=self.gripper_force)
 
                 self.gripper_grasp_client.send_goal(goal)
                 self.gripper_grasp_lock = 1
                 self.gripper_grasp_client.wait_for_result(rospy.Duration(0.1))
             print("In phase", self.phase, self.finger_width)
-            if self.gripper_grasp_lock and self.finger_width < 0.055:
+            if self.gripper_grasp_lock and self.finger_width < (self.obj_width+0.005):
                 self.phase = 3
                 self.gripper_grasp_lock = 0
-                self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + 0.1]
+                self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
         elif self.phase == 3:
             # lift phase
-            # epsilon = franka_gripper.msg.GraspEpsilon(inner=0.01, outer=0.01)
-            # goal = franka_gripper.msg.GraspGoal(
-            #     width=0.05, speed=0.1, epsilon=epsilon, force=1)
-            # self.gripper_grasp_client.send_goal(goal)
             self.desired_pose.pose.position.x = self.up_pos[0]
             self.desired_pose.pose.position.y = self.up_pos[1]
             self.desired_pose.pose.position.z = self.up_pos[2]
@@ -231,17 +278,64 @@ class ExpertController(object):
                 self.gripper_grasp_client.cancel_all_goals()
                 self.phase = 4
         elif self.phase == 4:
+            # preplace phase
+            dpos = np.clip(self.target_goal_pos + self.grasp_disp + np.array([0, 0, self.lift_height]) - self.eef_pos, -0.1, 0.1)
+            self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
+            self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
+            self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
+            angle = (np.pi/2+0.0)/2
+            self.desired_pose.pose.orientation.x = np.sin(angle)
+            self.desired_pose.pose.orientation.y = np.cos(angle)
+            self.desired_pose.pose.orientation.z = 0.0
+            self.desired_pose.pose.orientation.w = 0.0
+            print("In replace", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
+            if np.linalg.norm(dpos) < self.control_err:
+                self.phase = 5
+                self.gripper_grasp_client.cancel_all_goals()
+        elif self.phase == 5:
+            # place phase
+            target_pose = self.target_goal_pos + self.grasp_disp 
+            target_pose[2] = np.clip(target_pose[2], self.min_height, 10)
+            dpos = np.clip(target_pose- self.eef_pos, -0.05, 0.05)
+            self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
+            self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
+            self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
+            print("In replace", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
+            if np.linalg.norm(dpos) < self.control_err:
+                self.phase = 6
+        elif self.phase == 6:
+            # open gripper
             if not self.gripper_open_lock:
                 goal = franka_gripper.msg.MoveGoal(width=0.08, speed=0.1)
                 self.gripper_move_client.send_goal(goal)
-                print("In phase", self.phase, self.finger_width)
                 self.gripper_open_lock = 1
-
             if self.gripper_open_lock and self.finger_width > 0.078:
-                self.phase = 0
+                self.phase = 7
                 self.gripper_move_client.cancel_all_goals()
                 self.gripper_open_lock = 0
+                self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
+        elif self.phase == 7:
+            # lift phase
+            self.desired_pose.pose.position.x = self.up_pos[0]
+            self.desired_pose.pose.position.y = self.up_pos[1]
+            self.desired_pose.pose.position.z = self.up_pos[2]
+            print("In phase", self.phase, "hand pos", self.eef_pos)
+            if abs(self.eef_pos[2] - self.up_pos[2]) < 3e-2:
+                self.gripper_grasp_client.cancel_all_goals()
+                self.phase = -1
+                # clean the state variables for next stage observation
+                self.obj_pos = np.zeros((self.num_obj, 3))
+                self.g_pos = np.zeros((self.num_obj, 3))
         self.pose_pub.publish(self.desired_pose)
+
+    def get_next_obj_id(self):
+        obj2goal_dist = np.linalg.norm((self.obj_pos - self.g_pos)[:, :2], axis=1)
+        unreached_objects = np.where(obj2goal_dist > self.reach_thereshold)[0]
+        if len(unreached_objects) == 0:
+            return -1
+        else: 
+            # return the object with the smallest distance to the goal
+            return unreached_objects[np.argmin(obj2goal_dist[unreached_objects])]
 
 
 if __name__ == "__main__":

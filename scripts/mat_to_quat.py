@@ -8,6 +8,14 @@ def main(path):
     with open(path, 'rb') as f:
         data = pickle.load(f)
     trans_matrix = data['base_T_cam']
+    base_T_color = data['base_T_cam']
+
+    color_T_cam = np.eye(4)
+    color_T_cam[:3, -1] = -np.array([-0.0003, -0.0591, 0.0001])
+
+    base_T_cam = np.matmul(base_T_color, color_T_cam)
+
+    trans_matrix = base_T_cam 
 
     # use scipy to convert rot_matrix to quaternion
     r = R.from_matrix(trans_matrix[:3, :3])
