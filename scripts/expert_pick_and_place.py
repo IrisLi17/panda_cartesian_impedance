@@ -7,6 +7,7 @@ import math
 import actionlib
 from collections import deque
 import tf2_ros
+from std_msgs.msg import Int32
 
 from geometry_msgs.msg import PoseStamped, TransformStamped, Pose
 from franka_msgs.msg import FrankaState
@@ -21,22 +22,52 @@ from cv_bridge import CvBridge
 class ExpertController(object):
     def __init__(self):
         self.num_obj = 2
-        self.obj_tags = np.array([0, 1])
-        self.goal_tags = np.array([10, 31])
+        self.obj_tags = np.array([0, 1, 2])
+        self.goal_tags = np.array([10, 11, 21])
         self.grasp_disp = np.array([0.01, 0.075, 0.005])
         self.goal_disp = np.array([0.06, 0.0, 0.005])
         self.lift_height = 0.15
         self.reach_thereshold = 0.08
         self.control_err = 0.02
 
+        # handover related virtual objects
+        self.forward_handover_obj_ids = np.array([])
+        self.backward_handover_obj_ids = np.array([])
+        self.virtual_g_pos = np.array([0.5, 0.5, 0.02])  
+        self.virtual_obj_pos =  np.array([0.5, 0.5, 0.04])
+
         self.obj_width = 0.04
         self.gripper_force = 0.1
         self.min_height = 0.03
+
+        # handover state publisher
+        self.current_forward_obj_id = -1
+        self.forward_handover_state = 0 # 0: not started, 1: started, 2: ready, 3: finished
+        self.backward_handover_state = 0 # 0: not started, 1: started, 2: ready, 3: finished
+        self.forward_obj_id_pub = rospy.Publisher(
+            "right_arm/forward_obj_id", Int32, queue_size=10)
+        self.forward_handover_state_pub = rospy.Publisher(
+            "right_arm/forward_handover", Int32, queue_size=10)
+        self.backward_handover_state_pub = rospy.Publisher(
+            "right_arm/backward_handover", Int32, queue_size=10)
+        # handover state subscriber
+        self.current_backward_obj_id = -1
+        self.other_forward_handover_state = 0
+        self.other_backward_handover_state = 0
+        self.forward_obj_id_sub = rospy.Subscriber(
+            "left_arm/forward_obj_id", Int32, self.forward_obj_id_callback)
+        self.forward_handover_state_sub = rospy.Subscriber(
+            "left_arm/forward_handover", Int32, self.forward_handover_state_callback)
+        self.backward_handover_state_sub = rospy.Subscriber(
+            "left_arm/backward_handover", Int32, self.backward_handover_state_callback)
 
         self.obj_pos = np.zeros((self.num_obj, 3))
         self.g_pos = np.zeros((self.num_obj, 3))
         self.obj_angle = np.zeros((self.num_obj, 1))
         self.obj_pos_his, self.goal_pos_his, self.obj_angle_his = [], [], []
+        self.unobserved_obj_t = np.zeros((self.num_obj, 1))
+        self.unobserved_g_t = np.zeros((self.num_obj, 1))
+        self.unobserved_thereshold = 20
         # NOTE: using 
         for _ in range(self.num_obj):
             self.obj_pos_his.append(deque(maxlen=10))
@@ -108,6 +139,15 @@ class ExpertController(object):
         self.timer = rospy.Timer(rospy.Duration(0.1),
                     lambda msg: self.control_callback(msg))
     
+    def forward_obj_id_callback(self, msg):
+        self.current_backward_obj_id = msg.data
+
+    def forward_handover_state_callback(self, msg):
+        self.other_forward_handover_state = msg.data
+
+    def backward_handover_state_callback(self, msg):
+        self.other_backward_handover_state = msg.data
+    
     def franka_state_callback(self, msg):
         initial_quaternion = \
             tf.transformations.quaternion_from_matrix(
@@ -128,6 +168,7 @@ class ExpertController(object):
             self.eef_pos[1] = msg.O_T_EE[13]
             self.eef_pos[2] = msg.O_T_EE[14]
             self.robot_q = np.array(msg.q)
+
     
     def franka_gripper_state_callback(self, msg):
         self.finger_width = msg.position[0] + msg.position[1]
@@ -145,6 +186,9 @@ class ExpertController(object):
         O_T_ref[:3, 3] = ref_tvec
         # assume single object
         com_obs = []
+        # compute unobserved object time
+        self.unobserved_obj_t += 1
+        self.unobserved_g_t += 1
         for i in range(len(markers)):
             marker_id = markers[i].id  # useful to filter when tracking multiple objects
             # publish marker to tf tree with tf2
@@ -165,6 +209,7 @@ class ExpertController(object):
             if marker_id in self.obj_tags:
                 # get marker_id index in self.obj_tags
                 obj_id = np.where(self.obj_tags == marker_id)[0][0]
+                self.unobserved_obj_t[obj_id] -= 1
                 ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, t.child_frame_id, rospy.Time())
                 # get euler angle from quaternion
                 euler_angle = tf.transformations.euler_from_quaternion(ref_rvec)
@@ -173,28 +218,25 @@ class ExpertController(object):
             if marker_id in self.goal_tags:
                 # get marker_id index in self.obj_tags
                 goal_id = np.where(self.goal_tags == marker_id)[0][0]
+                self.unobserved_g_t[goal_id] -= 1
                 ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, t.child_frame_id, rospy.Time())
                 self.goal_pos_his[goal_id].append(ref_tvec)
-        for i in range(self.num_obj):
+        observed_obj_mask = self.unobserved_obj_t < self.unobserved_thereshold
+        observed_g_mask = self.unobserved_g_t < self.unobserved_thereshold
+        for i in np.arange(self.num_obj)[observed_obj_mask]:
             # set self.obj_pos to the mean of self.obj_pos_his
             self.obj_pos[i] = np.mean(np.asarray(self.obj_pos_his[i]), axis=0)
             self.obj_angle[i] = np.mean(np.asarray(self.obj_angle_his[i]), axis=0)
+        for i in np.arange(self.num_obj)[observed_g_mask]:
             self.g_pos[i] = np.mean(np.asarray(self.goal_pos_his[i]), axis=0) + self.goal_disp
             self.g_pos[i][2] = 0.02
-            # if marker_id == self.obj_tags[0]:
-            #     pose = markers[i].pose.pose
-            #     tvec = np.array([pose.position.x, pose.position.y, pose.position.z])
-            #     rvec = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
-            #     ref_T_marker = tf.transformations.quaternion_matrix(rvec)
-            #     ref_T_marker[:3, 3] = tvec
-            #     O_T_center = np.matmul(O_T_ref, ref_T_marker)
-            #     pos = O_T_center[:3, 3]
-            #     pos[2] -= 0.02
-            #     com_obs.append(pos)
-            #     print("N", len(markers), "std", np.std(np.asarray(com_obs), axis=0))
-            #     self.target_obj_pos_obs.append(np.mean(np.array(com_obs), axis=0))
-            #     self.target_obj_pos = np.mean(np.array(self.target_obj_pos_obs), axis=0)
-            #     print('box_pos', self.target_obj_pos)
+        for i in np.arange(self.num_obj)[~observed_obj_mask]:
+            # relabel to virtual object pos
+            self.obj_pos[i] = self.virtual_obj_pos
+        for i in np.arange(self.num_obj)[~observed_g_mask]:
+            self.g_pos[i] = self.virtual_g_pos
+        self.backward_handover_obj_ids = np.where(observed_g_mask&(~observed_obj_mask))[0]
+        self.forward_handover_obj_ids = np.where(observed_obj_mask&(~observed_g_mask))[0]
 
     def control_callback(self, msg):
         if self.phase == -2:
@@ -208,6 +250,19 @@ class ExpertController(object):
         elif self.phase == -1:
             # planning phase
             self.current_obj_id = self.get_next_obj_id()
+            # overwrite current_obj_id if handover is needed
+            if self.other_forward_handover_state > 0:
+                self.current_obj_id = self.current_backward_obj_id
+            # update handover status
+            if self.current_obj_id in self.backward_handover_obj_ids:
+                self.backward_handover_status = 1
+            else:
+                self.backward_handover_status = 0
+            if self.current_obj_id in self.forward_handover_obj_ids:
+                self.current_forward_obj_id = self.current_obj_id
+                self.forward_handover_status = 1
+            else:
+                self.forward_handover_status = 0
             if self.current_obj_id == -1:
                 print("All objects are done")
                 self.phase = -2
@@ -221,8 +276,12 @@ class ExpertController(object):
                 self.phase = 0
         
         if self.phase == 0:
+            # grasp phase
+            target_pose = self.target_obj_pos+ np.matmul(self.target_obj_rot_mat, self.grasp_disp) + np.array([0, 0, self.lift_height])
+            if self.backward_handover_status == 1:
+                target_pose = target_pose + np.array([0, 0, self.lift_height])
             # pregrasp phase
-            dpos = np.clip(self.target_obj_pos+ np.matmul(self.target_obj_rot_mat, self.grasp_disp) + np.array([0, 0, self.lift_height]) - self.eef_pos, -0.1 ,0.1)
+            dpos = np.clip(target_pose - self.eef_pos, -0.05 ,0.05)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
@@ -243,10 +302,15 @@ class ExpertController(object):
 
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
             if np.linalg.norm(dpos) < self.control_err:
+                if self.current_obj_id in self.backward_handover_obj_ids:
+                    if self.other_forward_handover_state == 2: 
+                        self.phase = 1
                 self.phase = 1
         elif self.phase == 1:
-            # grasp phase
-            dpos = np.clip(self.target_obj_pos + np.matmul(self.target_obj_rot_mat, self.grasp_disp) - self.eef_pos, -0.05, 0.05)
+            target_pose = self.target_obj_pos+ np.matmul(self.target_obj_rot_mat, self.grasp_disp)
+            if self.backward_handover_status == 1:
+                target_pose = target_pose + np.array([0, 0, self.lift_height])
+            dpos = np.clip(target_pose - self.eef_pos, -0.05, 0.05)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
@@ -265,6 +329,10 @@ class ExpertController(object):
                 self.gripper_grasp_client.wait_for_result(rospy.Duration(0.1))
             print("In phase", self.phase, self.finger_width)
             if self.gripper_grasp_lock and self.finger_width < (self.obj_width+0.005):
+                if self.current_obj_id in self.backward_handover_obj_ids:
+                    self.backward_handover_state = 2
+                    if self.other_forward_handover_state == 0:
+                        self.phase = 3
                 self.phase = 3
                 self.gripper_grasp_lock = 0
                 self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
@@ -290,7 +358,16 @@ class ExpertController(object):
             self.desired_pose.pose.orientation.w = 0.0
             print("In replace", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
             if np.linalg.norm(dpos) < self.control_err:
-                self.phase = 5
+                if self.current_obj_id in self.forward_handover_obj_ids:
+                    # update handover state
+                    self.forward_handover_state = 2
+                    # wait util other arm is handover ready
+                    if self.other_backward_handover_state==2:
+                        self.phase = 6
+                    else:
+                        self.phase = 4
+                else:
+                    self.phase = 5
                 self.gripper_grasp_client.cancel_all_goals()
         elif self.phase == 5:
             # place phase
@@ -313,7 +390,10 @@ class ExpertController(object):
                 self.phase = 7
                 self.gripper_move_client.cancel_all_goals()
                 self.gripper_open_lock = 0
-                self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
+                if self.forward_handover_state == 2:
+                    self.up_pos = [self.eef_pos[0], self.eef_pos[1] + self.lift_height, self.eef_pos[2]]
+                else:
+                    self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
         elif self.phase == 7:
             # lift phase
             self.desired_pose.pose.position.x = self.up_pos[0]
@@ -321,12 +401,16 @@ class ExpertController(object):
             self.desired_pose.pose.position.z = self.up_pos[2]
             print("In phase", self.phase, "hand pos", self.eef_pos)
             if abs(self.eef_pos[2] - self.up_pos[2]) < 3e-2:
+                if self.current_obj_id in self.forward_handover_obj_ids:
+                    self.forward_handover_state = 0
                 self.gripper_grasp_client.cancel_all_goals()
                 self.phase = -1
                 # clean the state variables for next stage observation
                 self.obj_pos = np.zeros((self.num_obj, 3))
                 self.g_pos = np.zeros((self.num_obj, 3))
         self.pose_pub.publish(self.desired_pose)
+        self.backward_handover_state_pub.publish(self.backward_handover_state)
+        self.forward_handover_state_pub.publish(self.forward_handover_state)
 
     def get_next_obj_id(self):
         obj2goal_dist = np.linalg.norm((self.obj_pos - self.g_pos)[:, :2], axis=1)
