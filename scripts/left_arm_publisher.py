@@ -10,11 +10,14 @@ if __name__ == '__main__':
             "left_arm/forward_handover", Int32, queue_size=10)
     backward_handover_state_pub = rospy.Publisher(
         "left_arm/backward_handover", Int32, queue_size=10)
+    forward_obj_id_pub = rospy.Publisher(
+        "left_arm/forward_obj_id", Int32, queue_size=10)
 
     while not rospy.is_shutdown():
-        fb = input('left forward state, backward state:')
+        fb = input('left forward state, backward state, forward obj:')
         forward_handover_state_pub.publish(int(fb[0]))
         backward_handover_state_pub.publish(int(fb[1]))
+        forward_obj_id_pub.publish(int(fb[2]))
         # rospy.sleep(3.0)
         # forward_handover_state_pub.publish(0)
         # backward_handover_state_pub.publish(0)

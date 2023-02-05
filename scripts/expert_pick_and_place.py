@@ -21,9 +21,9 @@ from cv_bridge import CvBridge
 
 class ExpertController(object):
     def __init__(self):
-        self.num_obj = 1
-        self.obj_tags = np.array([0])
-        self.goal_tags = np.array([10])
+        self.num_obj = 3
+        self.obj_tags = np.array([0, 1, 3, 4])
+        self.goal_tags = np.array([10, 2, 31, 14])
         self.grasp_disp = np.array([0.01, 0.075, 0.005])
         self.goal_disp = np.array([0.06, 0.0, 0.005])
         self.lift_height = 0.15
@@ -33,13 +33,13 @@ class ExpertController(object):
         # handover related virtual objects
         self.forward_handover_obj_ids = np.array([])
         self.backward_handover_obj_ids = np.array([])
-        self.virtual_g_pos = np.array([0.5, -0.5, 0.02])  
-        self.virtual_obj_pos =  np.array([0.5, -0.5, 0.04])
-        virtual_obj_thereshold = -0.45
+        self.virtual_g_pos = np.array([0.5, -0.6, 0.02])  
+        self.virtual_obj_pos =  np.array([0.5, -0.6, 0.04])
 
         self.obj_width = 0.04
         self.gripper_force = 0.1
         self.min_height = 0.03
+        self.max_move_per_step = 0.08
 
         # handover state publisher
         self.current_forward_obj_id = -1
@@ -131,7 +131,7 @@ class ExpertController(object):
 
         self.pose_pub = rospy.Publisher(
             "equilibrium_pose", PoseStamped, queue_size=10)
-        self.phase = -1 # for control
+        self.phase = -2 # for control
         self.gripper_grasp_lock = 0
         self.gripper_open_lock = 0
 
@@ -139,6 +139,8 @@ class ExpertController(object):
         # run pose publisher
         self.timer = rospy.Timer(rospy.Duration(0.1),
                     lambda msg: self.control_callback(msg))
+
+        self.start_lock = True
     
     def forward_obj_id_callback(self, msg):
         self.current_backward_obj_id = msg.data
@@ -237,24 +239,38 @@ class ExpertController(object):
             self.obj_angle[i] = 0
         for i in np.arange(self.num_obj)[~observed_g_mask]:
             self.g_pos[i] = self.virtual_g_pos
-        self.backward_handover_obj_ids = np.where(observed_g_mask&(~observed_obj_mask))[0]
-        self.forward_handover_obj_ids = np.where(observed_obj_mask&(~observed_g_mask))[0]
+        # self.backward_handover_obj_ids = np.where(observed_g_mask&(~observed_obj_mask))[0]
+        # self.forward_handover_obj_ids = np.where(observed_obj_mask&(~observed_g_mask))[0]
 
     def control_callback(self, msg):
         if self.phase == -2:
+            if self.start_lock:
+                # wait util all observation is received
+                rospy.sleep(20)
+                self.start_lock = False
+            observed_obj_mask = self.unobserved_obj_t < self.unobserved_thereshold
+            observed_g_mask = self.unobserved_g_t < self.unobserved_thereshold
+            self.forward_handover_obj_ids = np.where(observed_obj_mask&(~observed_g_mask))[0]
+            self.backward_handover_obj_ids = np.where(observed_g_mask&(~observed_obj_mask))[0]
             if np.all(self.obj_pos == 0):
                 print("Box pos not received")
             elif np.all(self.g_pos == 0):
                 print("Goal pos not received")
             else:
+                print(self.forward_handover_obj_ids, self.backward_handover_obj_ids)
                 self.phase = -1
         
         elif self.phase == -1:
             # planning phase
             self.current_obj_id = self.get_next_obj_id()
             # overwrite current_obj_id if handover is needed
-            if self.other_forward_handover_state > 0:
+            if self.current_backward_obj_id >= 0 and self.other_forward_handover_state >0:
                 self.current_obj_id = self.current_backward_obj_id
+                print('override current_obj_id with other_forward_hand')
+            elif self.current_obj_id in self.backward_handover_obj_ids:
+                # if determined backward object id is not handovered back, then ignored. 
+                print('backward handover object', self.current_obj_id, 'is not handovered back in', self.current_backward_obj_id)
+                self.current_obj_id = -1
             # update handover status
             if self.current_obj_id in self.backward_handover_obj_ids:
                 self.backward_handover_status = 1
@@ -264,17 +280,18 @@ class ExpertController(object):
                 self.current_forward_obj_id = self.current_obj_id
                 self.forward_handover_status = 1
             else:
+                self.current_forward_obj_id = -1 
                 self.forward_handover_status = 0
             if self.current_obj_id == -1:
                 print("All objects are done")
                 self.phase = -2
             else:
-                self.target_obj_pos = self.obj_pos[self.current_obj_id]
+                self.target_obj_pos = self.obj_pos[self.current_obj_id].copy()
                 self.target_obj_angle = self.obj_angle[self.current_obj_id]
                 self.target_obj_rot_mat = np.array([[np.cos(self.target_obj_angle), -np.sin(self.target_obj_angle), 0],
                                                     [np.sin(self.target_obj_angle), np.cos(self.target_obj_angle), 0],
                                                     [0, 0, 1]])
-                self.target_goal_pos = self.g_pos[self.current_obj_id]
+                self.target_goal_pos = self.g_pos[self.current_obj_id].copy()
                 self.phase = 0
         
         if self.phase == 0:
@@ -303,7 +320,6 @@ class ExpertController(object):
 
             print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
             if np.linalg.norm(dpos) < self.control_err:
-                print('=============', self.current_obj_id, self.backward_handover_obj_ids)
                 if self.current_obj_id in self.backward_handover_obj_ids:
                     if self.other_forward_handover_state == 2: 
                         self.phase = 1
@@ -323,7 +339,7 @@ class ExpertController(object):
         elif self.phase == 2:
             # close gripper phase
             if not self.gripper_grasp_lock:
-                epsilon = franka_gripper.msg.GraspEpsilon(inner=0.02, outer=0.01)
+                epsilon = franka_gripper.msg.GraspEpsilon(inner=0.02, outer=0.02)
                 goal = franka_gripper.msg.GraspGoal(
                     width=self.obj_width, speed=0.1, epsilon=epsilon, force=self.gripper_force)
 
@@ -332,16 +348,17 @@ class ExpertController(object):
                 self.gripper_grasp_client.wait_for_result(rospy.Duration(0.1))
             print("In phase", self.phase, self.finger_width)
             if self.gripper_grasp_lock and self.finger_width < (self.obj_width+0.005):
-                if self.current_obj_id in self.backward_handover_obj_ids:
-                    self.backward_handover_state = 2
-                    if self.other_forward_handover_state == 0:
-                        self.phase = 3
-                    else:
-                        self.phase = 2
-                else:
-                    self.phase = 3
                 self.gripper_grasp_lock = 0
                 self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
+            if self.current_obj_id in self.backward_handover_obj_ids:
+                self.backward_handover_state = 2
+                if self.other_forward_handover_state == 0:
+                    self.phase = 3
+                else:
+                    self.gripper_grasp_lock = 1
+                    self.phase = 2
+            else:
+                self.phase = 3
         elif self.phase == 3:
             # lift phase
             target_pose = self.up_pos
@@ -364,7 +381,7 @@ class ExpertController(object):
             self.desired_pose.pose.orientation.y = np.cos(angle)
             self.desired_pose.pose.orientation.z = 0.0
             self.desired_pose.pose.orientation.w = 0.0
-            print("In replace", self.phase, "hand pos", 'goal', self.target_goal_pos, 'obj', self.target_obj_pos, self.eef_pos, "error", np.linalg.norm(dpos))
+            print("In replace", self.phase, "hand pos", 'goal', self.target_goal_pos, 'obj', self.target_obj_pos, self.eef_pos, "error", np.linalg.norm(dpos), 'forward', self.forward_handover_obj_ids)
             if np.linalg.norm(dpos) < self.control_err:
                 if self.current_obj_id in self.forward_handover_obj_ids:
                     # update handover state
@@ -399,7 +416,7 @@ class ExpertController(object):
                 self.gripper_move_client.cancel_all_goals()
                 self.gripper_open_lock = 0
                 if self.forward_handover_state == 2:
-                    self.up_pos = [self.eef_pos[0], self.eef_pos[1] + self.lift_height, self.eef_pos[2]]
+                    self.up_pos = [self.eef_pos[0], self.eef_pos[1] + self.lift_height*2.0, self.eef_pos[2]]
                 else:
                     self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height*2.0]
         elif self.phase == 7:
@@ -414,7 +431,7 @@ class ExpertController(object):
                 if self.current_obj_id in self.forward_handover_obj_ids:
                     self.forward_handover_state = 0
                 self.gripper_grasp_client.cancel_all_goals()
-                self.phase = -1
+                self.phase = -2
                 # clean the state variables for next stage observation
                 self.obj_pos = np.zeros((self.num_obj, 3))
                 self.g_pos = np.zeros((self.num_obj, 3))
