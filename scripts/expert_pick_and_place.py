@@ -25,7 +25,7 @@ class ExpertController(object):
         self.robot_name = rospy.get_param('~robot_name')
         self.other_robot_name = rospy.get_param('~other_robot_name')
         if self.robot_name == 'left_arm':
-            self.grasp_disp = np.array([0.00, -0.075, 0.00])
+            self.grasp_disp = np.array([0.00, 0.075, -0.002])
         elif self.robot_name == 'right_arm':
             self.grasp_disp = np.array([0.015, 0.075, 0.005])
 
@@ -45,7 +45,7 @@ class ExpertController(object):
 
         self.obj_width = 0.04
         self.gripper_force = 0.1
-        self.min_height = 0.04
+        self.min_height = 0.05
         self.max_move_per_step = 0.08
 
         # handover state publisher
@@ -237,9 +237,7 @@ class ExpertController(object):
             # set self.obj_pos to the mean of self.obj_pos_his
             self.obj_pos[i] = np.mean(np.asarray(self.obj_pos_his[i]), axis=0)
             self.obj_angle[i] = np.mean(np.asarray(self.obj_angle_his[i]), axis=0)
-            if self.robot_name == "left_arm":
-                self.obj_angle -= np.pi
-            self.obj_angle = self.obj_angle % 2*np.pi
+            self.obj_angle = (self.obj_angle+np.pi/2)%(np.pi)-np.pi/2
         for i in np.arange(self.num_obj)[observed_g_mask]:
             self.g_pos[i] = np.mean(np.asarray(self.goal_pos_his[i]), axis=0) + self.goal_disp
             self.g_pos[i][2] = 0.02
@@ -313,10 +311,8 @@ class ExpertController(object):
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
-            if self.robot_name == 'right_arm':
-                angle = (np.pi/2-self.target_obj_angle)/2
-            elif self.robot_name == 'left_arm':
-                angle = (np.pi/2-self.target_obj_angle)/2
+            angle = ((np.pi/2-self.target_obj_angle)%np.pi)/2
+            print('=========', angle)
             self.desired_pose.pose.orientation.x = np.sin(angle)
             self.desired_pose.pose.orientation.y = np.cos(angle)
             self.desired_pose.pose.orientation.z = 0.0
@@ -384,15 +380,13 @@ class ExpertController(object):
                 self.gripper_grasp_client.cancel_all_goals()
                 self.phase = 4
         elif self.phase == 4:
+            # !!!!!
             # preplace phase
             dpos = np.clip(self.target_goal_pos + self.grasp_disp + np.array([0, 0, self.lift_height]) - self.eef_pos, -0.05, 0.05)
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
-            if self.robot_name == 'right_arm':
-                angle = (np.pi/2+0.0)/2
-            else:
-                angle = (np.pi/2+0.0)/2
+            angle = (np.pi/2+0.0)/2
             self.desired_pose.pose.orientation.x = np.sin(angle)
             self.desired_pose.pose.orientation.y = np.cos(angle)
             self.desired_pose.pose.orientation.z = 0.0
