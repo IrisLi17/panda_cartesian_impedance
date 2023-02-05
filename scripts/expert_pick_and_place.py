@@ -350,15 +350,15 @@ class ExpertController(object):
             if self.gripper_grasp_lock and self.finger_width < (self.obj_width+0.005):
                 self.gripper_grasp_lock = 0
                 self.up_pos = [self.eef_pos[0], self.eef_pos[1], self.eef_pos[2] + self.lift_height]
-            if self.current_obj_id in self.backward_handover_obj_ids:
-                self.backward_handover_state = 2
-                if self.other_forward_handover_state == 0:
-                    self.phase = 3
+                if self.current_obj_id in self.backward_handover_obj_ids:
+                    self.backward_handover_state = 2
+                    if self.other_forward_handover_state == 0:
+                        self.phase = 3
+                    else:
+                        self.gripper_grasp_lock = 1
+                        self.phase = 2
                 else:
-                    self.gripper_grasp_lock = 1
-                    self.phase = 2
-            else:
-                self.phase = 3
+                    self.phase = 3
         elif self.phase == 3:
             # lift phase
             target_pose = self.up_pos
