@@ -312,7 +312,6 @@ class ExpertController(object):
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
             angle = ((np.pi/2-self.target_obj_angle)%np.pi)/2
-            print('=========', angle)
             self.desired_pose.pose.orientation.x = np.sin(angle)
             self.desired_pose.pose.orientation.y = np.cos(angle)
             self.desired_pose.pose.orientation.z = 0.0
