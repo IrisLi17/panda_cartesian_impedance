@@ -5,7 +5,8 @@
     <arg name="eye_on_hand" default="false" />
     <arg name="markerSize" default="0.03" />
 
-    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="1.09751364598 0.105793852438 0.502234701461 -0.667847162926 -0.676457911387 0.219082354839 0.219972232093 world camera_link"/>
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.9059668021277698 0.07186919739376732 0.3938950998355863 0.6408042724982408 0.6951099110693949 -0.2539620740750164 -0.20419441915148945 world left_camera_link"/>
+    
 
     <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
     
@@ -22,6 +23,11 @@
     
     <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch" >
         <arg name="markerSize" value="$(arg markerSize)" />
+        <arg name="camera" value="left_camera"/>
+        <arg name="serial_no" value="152522250539" />
+        <arg name="camera_image_topic" value="/left_camera/color/image_raw" />
+        <arg name="camera_info_topic" value="/left_camera/color/camera_info" />
+        <arg name="camera_frame" default="left_camera_color_frame" />
     </include>
     
     <!-- read object pose from marker, and command the arm !-->
