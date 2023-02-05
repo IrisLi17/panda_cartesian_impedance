@@ -21,10 +21,17 @@ from cv_bridge import CvBridge
 
 class ExpertController(object):
     def __init__(self):
+        # robot related parameters
+        self.robot_name = rospy.get_param('~robot_name')
+        self.other_robot_name = rospy.get_param('~other_robot_name')
+        if self.robot_name == 'left_arm':
+            self.grasp_disp = np.array([0.00, 0.075, 0.000])
+        elif self.robot_name == 'right_arm':
+            self.grasp_disp = np.array([0.015, 0.075, 0.005])
+
         self.num_obj = 5
         self.obj_tags = np.array([0, 1, 2, 3, 4])
         self.goal_tags = np.array([10, 11, 12, 13, 14])
-        self.grasp_disp = np.array([0.01, 0.075, 0.005])
         self.goal_disp = np.array([0.06, 0.0, 0.005])
         self.lift_height = 0.15
         self.reach_thereshold = 0.08
@@ -41,9 +48,6 @@ class ExpertController(object):
         self.min_height = 0.03
         self.max_move_per_step = 0.08
 
-        # robot related parameters
-        self.robot_name = rospy.get_param('~robot_name')
-        self.other_robot_name = rospy.get_param('~other_robot_name')
 
         # handover state publisher
         self.current_forward_obj_id = -1
@@ -64,7 +68,7 @@ class ExpertController(object):
         self.forward_handover_state_sub = rospy.Subscriber(
             self.other_robot_name+"/forward_handover", Int32, self.forward_handover_state_callback)
         self.backward_handover_state_sub = rospy.Subscriber(
-            self.other_robot_name+"/backward_handover", Int32, self.backward_handover_state_callback)
+            "/backward_handover", Int32, self.backward_handover_state_callback)
 
         self.obj_pos = np.zeros((self.num_obj, 3))
         self.g_pos = np.zeros((self.num_obj, 3))
