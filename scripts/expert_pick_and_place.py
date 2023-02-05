@@ -21,9 +21,9 @@ from cv_bridge import CvBridge
 
 class ExpertController(object):
     def __init__(self):
-        self.num_obj = 3
-        self.obj_tags = np.array([0, 1, 3, 4])
-        self.goal_tags = np.array([10, 2, 31, 14])
+        self.num_obj = 5
+        self.obj_tags = np.array([0, 1, 2, 3, 4])
+        self.goal_tags = np.array([10, 11, 12, 13, 14])
         self.grasp_disp = np.array([0.01, 0.075, 0.005])
         self.goal_disp = np.array([0.06, 0.0, 0.005])
         self.lift_height = 0.15
@@ -41,26 +41,30 @@ class ExpertController(object):
         self.min_height = 0.03
         self.max_move_per_step = 0.08
 
+        # robot related parameters
+        self.robot_name = rospy.get_param('~robot_name')
+        self.other_robot_name = rospy.get_param('~other_robot_name')
+
         # handover state publisher
         self.current_forward_obj_id = -1
         self.forward_handover_state = 0 # 0: not started, 1: started, 2: ready, 3: finished
         self.backward_handover_state = 0 # 0: not started, 1: started, 2: ready, 3: finished
         self.forward_obj_id_pub = rospy.Publisher(
-            "right_arm/forward_obj_id", Int32, queue_size=10)
+            self.robot_name+"/forward_obj_id", Int32, queue_size=10)
         self.forward_handover_state_pub = rospy.Publisher(
-            "right_arm/forward_handover", Int32, queue_size=10)
+            self.robot_name+"/forward_handover", Int32, queue_size=10)
         self.backward_handover_state_pub = rospy.Publisher(
-            "right_arm/backward_handover", Int32, queue_size=10)
+            self.robot_name+"/backward_handover", Int32, queue_size=10)
         # handover state subscriber
         self.current_backward_obj_id = -1
         self.other_forward_handover_state = 0
         self.other_backward_handover_state = 0
         self.forward_obj_id_sub = rospy.Subscriber(
-            "left_arm/forward_obj_id", Int32, self.forward_obj_id_callback)
+            self.other_robot_name+"/forward_obj_id", Int32, self.forward_obj_id_callback)
         self.forward_handover_state_sub = rospy.Subscriber(
-            "left_arm/forward_handover", Int32, self.forward_handover_state_callback)
+            self.other_robot_name+"/forward_handover", Int32, self.forward_handover_state_callback)
         self.backward_handover_state_sub = rospy.Subscriber(
-            "left_arm/backward_handover", Int32, self.backward_handover_state_callback)
+            self.other_robot_name+"/backward_handover", Int32, self.backward_handover_state_callback)
 
         self.obj_pos = np.zeros((self.num_obj, 3))
         self.g_pos = np.zeros((self.num_obj, 3))
