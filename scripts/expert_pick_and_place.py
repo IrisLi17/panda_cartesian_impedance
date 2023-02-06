@@ -25,14 +25,14 @@ class ExpertController(object):
         self.robot_name = rospy.get_param('~robot_name')
         self.other_robot_name = rospy.get_param('~other_robot_name')
         if self.robot_name == 'left_arm':
-            self.grasp_disp = np.array([0.01, 0.075, -0.002])
+            self.grasp_disp = np.array([0.016, 0.075, -0.01])
         elif self.robot_name == 'right_arm':
-            self.grasp_disp = np.array([0.015, 0.075, 0.00])
+            self.grasp_disp = np.array([0.02, 0.075, -0.008])
 
-        self.num_obj = 5
-        self.obj_tags = np.array([0, 1, 2, 3, 4])
-        self.goal_tags = np.array([10, 11, 12, 13, 14])
-        self.goal_disp = np.array([0.06, 0.0, 0.005])
+        self.num_obj = 8
+        self.obj_tags = np.array([0, 1, 2, 3, 4, 5, 6, 7])
+        self.goal_tags = np.array([10, 11, 12, 13, 14, 15, 16, 17])
+        self.goal_disp = np.array([0.065, 0.0, 0.005])
         self.lift_height = 0.18
         self.reach_thereshold = 0.08
         self.control_err = 0.02
@@ -42,18 +42,16 @@ class ExpertController(object):
         self.backward_handover_obj_ids = np.array([])
 
         if self.robot_name == 'left_arm':
-            self.virtual_g_pos = np.array([0.5-0.08, -0.6-0.08, 0.02+0.015])
+            self.virtual_g_pos = np.array([0.5-0.089, -0.6-0.08, 0.03+0.015])
+            self.virtual_obj_pos = self.virtual_g_pos + np.array([0,0,0.00])
         elif self.robot_name == 'right_arm':
-            self.virtual_g_pos = np.array([0.5, -0.6, 0.02])  
-        if self.robot_name == 'left_arm':
-            self.virtual_obj_pos = self.virtual_g_pos + np.array([0,0,0.01])
-        elif self.robot_name == 'right_arm':
-            self.virtual_obj_pos = self.virtual_g_pos + np.array([0,0,-0.01])
+            self.virtual_g_pos = np.array([0.5, -0.6, 0.03])  
+            self.virtual_obj_pos = np.array([0.5, -0.6, 0.03]) 
 
         self.obj_width = 0.04
         self.gripper_force = 0.1
         self.min_height = 0.05
-        self.max_move_per_step = 0.06
+        self.max_move_per_step = 0.05
 
         # handover state publisher
         self.current_forward_obj_id = -1
@@ -82,7 +80,7 @@ class ExpertController(object):
         self.obj_pos_his, self.goal_pos_his, self.obj_angle_his = [], [], []
         self.unobserved_obj_t = np.zeros((self.num_obj))
         self.unobserved_g_t = np.zeros((self.num_obj))
-        self.unobserved_thereshold = 20
+        self.unobserved_thereshold = 40
         # NOTE: using 
         for _ in range(self.num_obj):
             self.obj_pos_his.append(deque(maxlen=10))
@@ -238,9 +236,9 @@ class ExpertController(object):
                 self.unobserved_g_t[goal_id] = 0
                 ref_tvec, ref_rvec = self.tf_listener.lookupTransform(self.link_name, t.child_frame_id, rospy.Time())
                 self.goal_pos_his[goal_id].append(ref_tvec)
-        print('===========marker id', all_id)
-        print('===========self', self.forward_handover_state, self.backward_handover_state, self.current_forward_obj_id)
-        print('===========other', self.other_forward_handover_state, self.other_backward_handover_state, self.current_backward_obj_id)
+        # print('===========marker id', all_id)
+        # print('===========self', self.forward_handover_state, self.backward_handover_state, self.current_forward_obj_id)
+        # print('===========other', self.other_forward_handover_state, self.other_backward_handover_state, self.current_backward_obj_id)
         observed_obj_mask = self.unobserved_obj_t < self.unobserved_thereshold
         observed_g_mask = self.unobserved_g_t < self.unobserved_thereshold
         for i in np.arange(self.num_obj)[observed_obj_mask]:
@@ -266,8 +264,8 @@ class ExpertController(object):
                 # wait util all observation is received
                 rospy.sleep(10)
                 self.start_lock = False
-            observed_obj_mask = self.unobserved_obj_t < self.unobserved_thereshold
-            observed_g_mask = self.unobserved_g_t < self.unobserved_thereshold
+            observed_obj_mask = self.unobserved_obj_t < self.unobserved_thereshold*2
+            observed_g_mask = self.unobserved_g_t < self.unobserved_thereshold*2
             self.forward_handover_obj_ids = np.where(observed_obj_mask&(~observed_g_mask))[0]
             self.backward_handover_obj_ids = np.where(observed_g_mask&(~observed_obj_mask))[0]
             if np.all(self.obj_pos == 0):
@@ -336,7 +334,7 @@ class ExpertController(object):
                 self.gripper_move_client.cancel_all_goals()
                 self.gripper_open_lock = 0
 
-            print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
+            print("In phase", self.phase, "to obj", self.current_obj_id, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
             if np.linalg.norm(dpos) < self.control_err:
                 if self.current_obj_id in self.backward_handover_obj_ids:
                     if self.other_forward_handover_state == 2: 
@@ -351,7 +349,7 @@ class ExpertController(object):
             self.desired_pose.pose.position.x = self.eef_pos[0] + dpos[0]
             self.desired_pose.pose.position.y = self.eef_pos[1] + dpos[1]
             self.desired_pose.pose.position.z = self.eef_pos[2] + dpos[2]
-            print("In phase", self.phase, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
+            print("In phase", self.phase, "to obj", self.current_obj_id, "hand pos", self.eef_pos, "error", np.linalg.norm(dpos))
             if np.linalg.norm(dpos) < self.control_err:
                 self.phase = 2
         elif self.phase == 2:
@@ -470,8 +468,13 @@ class ExpertController(object):
         if len(unreached_objects) == 0:
             return -1
         else: 
-            # return the object with the smallest distance to the goal
-            return unreached_objects[np.argmin(obj2goal_dist[unreached_objects])]
+            # ignore backward objects
+            unreached_objects = np.setdiff1d(unreached_objects, self.backward_handover_obj_ids)
+            if len(unreached_objects) == 0:
+                return -1
+            else:
+                # return the object with the smallest distance to the goal
+                return unreached_objects[np.argmin(obj2goal_dist[unreached_objects])]
 
 
 if __name__ == "__main__":
