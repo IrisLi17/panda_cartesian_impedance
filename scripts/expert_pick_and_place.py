@@ -27,7 +27,7 @@ class ExpertController(object):
         if self.robot_name == 'left_arm':
             self.grasp_disp = np.array([0.01, 0.075, -0.002])
         elif self.robot_name == 'right_arm':
-            self.grasp_disp = np.array([0.015, 0.075, 00.00])
+            self.grasp_disp = np.array([0.015, 0.075, 0.00])
 
         self.num_obj = 5
         self.obj_tags = np.array([0, 1, 2, 3, 4])
