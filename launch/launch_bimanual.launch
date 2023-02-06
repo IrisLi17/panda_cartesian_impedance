@@ -1,0 +1,10 @@
+<launch>
+    <group ns="right_arm">
+        <include file="$(find panda_cartesian_impedance)/launch/right_pick_and_place.launch">
+        </include>
+    </group>
+    <group ns="left_arm">
+        <include file="$(find panda_cartesian_impedance)/launch/left_pick_and_place.launch">
+        </include>
+    </group>
+</launch>

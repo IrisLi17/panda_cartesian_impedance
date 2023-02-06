@@ -1,43 +1,54 @@
-<?xml version="1.0" ?>
+<?xml version="1.0"?>
+<!-- <group ns="left_arm"> -->
 <launch>
-    <arg name="robot_ip" default="172.16.0.2"/>
+    <arg name="robot_ip" default="172.16.0.2" />
     <arg name="load_gripper" default="true" />
     <arg name="eye_on_hand" default="false" />
     <arg name="markerSize" default="0.03" />
 
-    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.9059668021277698 0.07186919739376732 0.3938950998355863 0.6408042724982408 0.6951099110693949 -0.2539620740750164 -0.20419441915148945 world left_camera_link"/>
-    
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros"
+        type="static_transform_publisher"
+        args="0.903171423496313 0.07472541145171142 0.3973654120363251 0.6435337495360164 0.6922571454169925 -0.2534692602948398 -0.20590699821234706 world left_camera_link" />
+        
 
-    <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
-    
+
+    <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros"
+        type="static_transform_publisher"
+        args="0 0 0 0 0 0 world panda_link0" />
+
     <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
-    <include file="$(find franka_control)/launch/franka_control.launch" >
+    <include file="$(find franka_control)/launch/franka_control.launch">
         <arg name="robot_ip" value="$(arg robot_ip)" />
         <arg name="load_gripper" value="$(arg load_gripper)" />
     </include>
-    
-    <rosparam command="load" file="$(find panda_cartesian_impedance)/config/cartesian_impedance_controllers.yaml" />
-    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="cartesian_ik_controller"/>
-  
-    <node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find franka_example_controllers)/launch/rviz/franka_description_with_marker.rviz"/>      
-    
-    <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch" >
+
+    <rosparam command="load"
+        file="$(find panda_cartesian_impedance)/config/cartesian_impedance_controllers.yaml" />
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+        output="screen" args="cartesian_ik_controller" />
+
+    <node pkg="rviz" type="rviz" output="screen" name="rviz"
+        args="-d $(find franka_example_controllers)/launch/rviz/franka_description_with_marker.rviz" />
+
+    <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch">
         <arg name="markerSize" value="$(arg markerSize)" />
-        <arg name="camera" value="left_camera"/>
+        <arg name="camera" value="left_camera" />
         <arg name="serial_no" value="152522250539" />
-        <arg name="camera_image_topic" value="/left_camera/color/image_raw" />
-        <arg name="camera_info_topic" value="/left_camera/color/camera_info" />
+        <arg name="camera_image_topic" value="left_camera/color/image_raw" />
+        <arg name="camera_info_topic" value="left_camera/color/camera_info" />
         <arg name="camera_frame" default="left_camera_color_frame" />
     </include>
-    
+
     <!-- read object pose from marker, and command the arm !-->
-    <node name="expert_pick_and_place" pkg="panda_cartesian_impedance" type="expert_pick_and_place.py" required="true" output="screen">
+    <node name="expert_pick_and_place" pkg="panda_cartesian_impedance"
+        type="expert_pick_and_place.py" required="true" output="screen">
         <remap from="equilibrium_pose" to="cartesian_ik_controller/equilibrium_pose" />
-        <param name="link_name" value="panda_link0" />  
+        <param name="link_name" value="panda_link0" />
         <param name="markers_topic" value="marker_publisher/markers" />
-        <param name="robot_name" value="left_arm" /> 
+        <param name="robot_name" value="left_arm" />
         <param name="other_robot_name" value="right_arm" />
     </node>
     <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" required="false" />
 
 </launch>
+<!-- </group> -->

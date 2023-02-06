@@ -1,52 +1,67 @@
-<?xml version="1.0" ?>
+<?xml version="1.0"?>
+<!-- <group ns="right_arm"> -->
 <launch>
-    <arg name="robot_ip" default="192.168.1.110"/>
+    <arg name="robot_ip" default="192.168.1.110" />
     <arg name="load_gripper" default="true" />
     <arg name="eye_on_hand" default="false" />
     <arg name="markerSize" default="0.03" />
 
     <!-- <include file="$(find easy_handeye)/launch/publish.launch">
-        <arg name="eye_on_hand" value="$(arg eye_on_hand)" />
-        <arg name="namespace_prefix" value="panda_eob_calib" unless="$(arg eye_on_hand)"/>
-        <arg name="namespace_prefix" value="panda_eih_calib" if="$(arg eye_on_hand)" />
-    </include> -->
+            <arg name="eye_on_hand" value="$(arg eye_on_hand)" />
+            <arg name="namespace_prefix" value="panda_eob_calib" unless="$(arg eye_on_hand)"/>
+            <arg name="namespace_prefix" value="panda_eih_calib" if="$(arg eye_on_hand)" />
+        </include> -->
 
-    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros" type="static_transform_publisher" args="0.8605073021350714 0.08508674663606225 0.43703621569476125 0.6916764240399591 0.684373876898501 -0.16593421397439104 -0.1602559130856363 world right_camera_link"/>
-    
+    <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros"
+        type="static_transform_publisher"
+        args="0.8605073021350714 0.08508674663606225 0.43703621569476125 0.6916764240399591 0.684373876898501 -0.16593421397439104 -0.1602559130856363 world right_camera_link" />
 
-    <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros" type="static_transform_publisher" args="0 0 0 0 0 0 world panda_link0"/>
-    
+
+    <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros"
+        type="static_transform_publisher"
+        args="0 0 0 0 0 0 world panda_link0" />
+
     <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
-    <include file="$(find franka_control)/launch/franka_control.launch" >
+    <include file="$(find franka_control)/launch/franka_control.launch">
         <arg name="robot_ip" value="$(arg robot_ip)" />
         <arg name="load_gripper" value="$(arg load_gripper)" />
     </include>
-    
-    <!--rosparam command="load" file="$(find franka_example_controllers)/config/franka_example_controllers.yaml" /!-->
-    <!--node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="cartesian_impedance_example_controller"/!-->
-    <rosparam command="load" file="$(find panda_cartesian_impedance)/config/cartesian_impedance_controllers.yaml" />
-    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" args="cartesian_ik_controller"/>
-  
-    <node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find franka_example_controllers)/launch/rviz/franka_description_with_marker.rviz"/>      
-    
-    <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch" >
+
+    <!--rosparam
+    command="load" file="$(find franka_example_controllers)/config/franka_example_controllers.yaml"
+    /!-->
+    <!--node
+    name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+    output="screen" args="cartesian_impedance_example_controller"/!-->
+    <rosparam command="load"
+        file="$(find panda_cartesian_impedance)/config/cartesian_impedance_controllers.yaml" />
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+        output="screen" args="cartesian_ik_controller" />
+
+    <node pkg="rviz" type="rviz" output="screen" name="rviz"
+        args="-d $(find franka_example_controllers)/launch/rviz/franka_description_with_marker.rviz" />
+
+    <include file="$(find panda_cartesian_impedance)/launch/tracking_system.launch">
         <arg name="markerSize" value="$(arg markerSize)" />
-        <arg name="camera" value="right_camera"/>
+        <arg name="camera" value="right_camera" />
         <arg name="camera_frame" default="right_camera_color_frame" />
         <arg name="serial_no" value="117122250991" />
-        <arg name="camera_image_topic" value="/right_camera/color/image_raw" />
-        <arg name="camera_info_topic" value="/right_camera/color/camera_info" />
+        <arg name="camera_image_topic" value="right_camera/color/image_raw" />
+        <arg name="camera_info_topic" value="right_camera/color/camera_info" />
     </include>
-    
+
     <!-- read object pose from marker, and command the arm !-->
-    <node name="expert_pick_and_place" pkg="panda_cartesian_impedance" type="expert_pick_and_place.py" required="true" output="screen">
-        <!--remap from="equilibrium_pose" to="/cartesian_impedance_example_controller/equilibrium_pose" /!-->
+    <node name="expert_pick_and_place" pkg="panda_cartesian_impedance"
+        type="expert_pick_and_place.py" required="true" output="screen">
+        <!--remap
+        from="equilibrium_pose" to="/cartesian_impedance_example_controller/equilibrium_pose" /!-->
         <remap from="equilibrium_pose" to="cartesian_ik_controller/equilibrium_pose" />
-        <param name="link_name" value="panda_link0" />  
+        <param name="link_name" value="panda_link0" />
         <param name="markers_topic" value="marker_publisher/markers" />
-        <param name="robot_name" value="right_arm" /> 
+        <param name="robot_name" value="right_arm" />
         <param name="other_robot_name" value="left_arm" />
     </node>
     <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" required="false" />
 
 </launch>
+<!-- </group> -->
