@@ -8,6 +8,8 @@ import actionlib
 from collections import deque
 import tf2_ros
 from std_msgs.msg import Int32
+import torch
+from torch import nn
 
 from geometry_msgs.msg import PoseStamped, TransformStamped, Pose
 from franka_msgs.msg import FrankaState
@@ -52,6 +54,14 @@ class ExpertController(object):
         self.gripper_force = 0.1
         self.min_height = 0.05
         self.max_move_per_step = 0.05
+
+        # policy related
+        torch.set_grad_enabled(False)
+        self.policy = nn.Sequential(
+            nn.Linear(8+8*3+8*3+8, 256), nn.ReLU(), 
+            nn.Linear(256, 256), nn.ReLU(), 
+            nn.Linear(256, 9), nn.Softmax())
+        self.policy.load_state_dict(torch.load('/home/sqz/catkin_ws/src/panda_cartesian_impedance/policy/real_robot.pth', map_location='cpu'))
 
         # handover state publisher
         self.current_forward_obj_id = -1
@@ -473,8 +483,22 @@ class ExpertController(object):
             if len(unreached_objects) == 0:
                 return -1
             else:
-                # return the object with the smallest distance to the goal
-                return unreached_objects[np.argmin(obj2goal_dist[unreached_objects])]
+                # get observation
+                obj_pos_tensor = torch.from_numpy(self.obj_pos[unreached_objects]).float()
+                obj_pos_tensor = torch.cat([obj_pos_tensor, -torch.ones(8-len(unreached_objects), 3).float()], dim=0)
+                g_pos_tensor = torch.from_numpy(self.g_pos[unreached_objects]).float()
+                g_pos_tensor = torch.cat([g_pos_tensor, torch.ones(8-len(unreached_objects), 3).float()], dim=0)
+                obj2goal_dist_tensor = torch.norm(obj_pos_tensor - g_pos_tensor, dim=1)
+                eef_pos_tensor = torch.from_numpy(self.eef_pos).float()
+                eef_pos_tensor = torch.cat([eef_pos_tensor, torch.zeros(5).float()], dim=0)
+                # concat all observations
+                obs = torch.cat([obj2goal_dist_tensor, obj_pos_tensor.flatten(), g_pos_tensor.flatten(), eef_pos_tensor], dim=0)
+                # get action
+                action = self.policy(obs).detach().numpy()
+                # next obj_id
+                idx_in_unreached_set = np.argmax(action)
+                return unreached_objects[idx_in_unreached_set]
+                # return unreached_objects[np.argmin(obj2goal_dist[unreached_objects])]
 
 
 if __name__ == "__main__":
