@@ -14,7 +14,7 @@
 
     <node name="virtual_joint_point_boardcaster_1" pkg="tf2_ros"
         type="static_transform_publisher"
-        args="0.8605073021350714 0.08508674663606225 0.43703621569476125 0.6916764240399591 0.684373876898501 -0.16593421397439104 -0.1602559130856363 world right_camera_link" />
+        args="0.85517618150713 0.08920309092498924 0.43157833306978194 0.7032811100561775 0.6629990591212731 -0.18898823319453686 -0.17352629644081238 world right_camera_link" />
 
 
     <node name="virtual_joint_point_boardcaster_2" pkg="tf2_ros"

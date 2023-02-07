@@ -27,7 +27,7 @@ class ExpertController(object):
         if self.robot_name == 'left_arm':
             self.grasp_disp = np.array([0.016, 0.075, -0.02])
         elif self.robot_name == 'right_arm':
-            self.grasp_disp = np.array([0.015, 0.075, -0.008])
+            self.grasp_disp = np.array([0.015, 0.075, 0.00])
 
         self.num_obj = 8
         self.obj_tags = np.array([0, 1, 2, 3, 4, 5, 6, 7])
@@ -42,7 +42,7 @@ class ExpertController(object):
         self.backward_handover_obj_ids = np.array([])
 
         if self.robot_name == 'left_arm':
-            self.virtual_g_pos = np.array([0.5-0.08, -0.6-0.08, 0.03+0.02])
+            self.virtual_g_pos = np.array([0.5-0.08, -0.6-0.08, 0.03+0.01])
             self.virtual_obj_pos = self.virtual_g_pos + np.array([0,0,0.00])
         elif self.robot_name == 'right_arm':
             self.virtual_g_pos = np.array([0.5, -0.6, 0.03])  

@@ -1,0 +1,1 @@
+ROS_NAMESPACE=right_arm roslaunch panda_cartesian_impedance right_pick_and_place.launch
