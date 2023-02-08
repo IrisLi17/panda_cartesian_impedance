@@ -51,8 +51,8 @@
     </include>
 
     <!-- read object pose from marker, and command the arm !-->
-    <node name="expert_pick_and_place" pkg="panda_cartesian_impedance"
-        type="expert_pick_and_place.py" required="true" output="screen">
+    <node name="neural_pick_and_place" pkg="panda_cartesian_impedance"
+        type="neural_pick_and_place.py" required="true" output="screen">
         <!--remap
         from="equilibrium_pose" to="/cartesian_impedance_example_controller/equilibrium_pose" /!-->
         <remap from="equilibrium_pose" to="cartesian_ik_controller/equilibrium_pose" />
